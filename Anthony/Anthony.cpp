@@ -226,7 +226,7 @@ BOOL ReadFromFile()
 {
 	IFileOpenDialog *pDlg;
 	COMDLG_FILTERSPEC FileTypes[] = {
-		{ L"MemoryCard files", L"*.mem;*.psm" },
+		{ L"MemoryCard files", L"*.mcr;*.mem;*.psm" },
 		{ L"All files", L"*.*" }
 	};
 
@@ -334,7 +334,7 @@ BOOL WriteToFile()
 {
 	IFileSaveDialog *pDlg;
 	COMDLG_FILTERSPEC FileTypes[] = {
-		{ L"MemoryCard files", L"*.mem;*.psm" },
+		{ L"MemoryCard files", L"*.mcr;*.mem;*.psm" },
 		{ L"All files", L"*.*" }
 	};
 
@@ -432,7 +432,7 @@ BOOL WriteToCard()
 					if (Length != sizeof(InData))
 					{
 						TCHAR strBuf[128];
-						_stprintf_s(strBuf, _T("Error among Write Frame %d.\nPlease Reconnect Memory Card Adaptor."), i);
+						_stprintf_s(strBuf, sizeof(strBuf) / sizeof(strBuf[0]), _T("Error among Write Frame %d.\nPlease Reconnect Memory Card Adaptor."), i);
 						MessageBox(NULL, strBuf, szTitle, MB_OK);
 						CloseDevice(&deviceData);
 
@@ -516,7 +516,7 @@ BOOL SetupWinUsb(DEVICE_DATA *deviceData)
 
 	if (FALSE == bResult || lengthReceived != sizeof(deviceDesc))
 	{
-		_stprintf_s(strBuf, sizeof(strBuf), _T("Error among LastError %d or lengthReceived %d\n"),
+		_stprintf_s(strBuf, sizeof(strBuf) / sizeof(strBuf[0]), _T("Error among LastError %d or lengthReceived %d\n"),
 			FALSE == bResult ? GetLastError() : 0,
 			lengthReceived);
 		MessageBox(NULL, strBuf, NULL, MB_OK);
@@ -596,22 +596,27 @@ BOOL UpdateDataList(MEMORYCARD* data)
 	//データ名表示
 	for (int i = 0; i < 16; i++)
 	{
-		if (data->Block[i][0] == 'S' && data->Block[i][1] == 'C')
+		//ブロックが使用中で、セーブデータの先頭ブロックか
+		if ((data->Block[0][128 * i]) == 0x51)
 		{
-			char strTitle[0x5f - 0x03];
-			LVITEM lvi = { 0, };
-			//strcpy_s(strTitle, sizeof(strTitle), (char*)&data->Block[i][4]);
-			StringCchCopyA(strTitle, sizeof(strTitle), (char*)&data->Block[i][4]);
-			//文字コード変換
-			CA2T wstrTitle(strTitle);
+			//"SC"で始まるはず
+			if (data->Block[i][0] == 'S' && data->Block[i][1] == 'C')
+			{
+				char strTitle[0x5f - 0x03];
+				LVITEM lvi = { 0, };
+				//strcpy_s(strTitle, sizeof(strTitle), (char*)&data->Block[i][4]);
+				StringCchCopyA(strTitle, sizeof(strTitle), (char*)&data->Block[i][4]);
+				//文字コード変換
+				CA2T wstrTitle(strTitle);
 
-			lvi.pszText = wstrTitle;
-			lvi.mask = LVIF_TEXT;
-			lvi.iItem = ListView_GetItemCount(hWnd);
-			ListView_InsertItem(hWnd, (LPLVITEM)&lvi);
-			TCHAR BlockNo[3];
-			_stprintf_s(BlockNo, _T("%d"), i);
-			ListView_SetItemText(hWnd, ListView_GetItemCount(hWnd)-1, 1, BlockNo);
+				lvi.pszText = wstrTitle;
+				lvi.mask = LVIF_TEXT;
+				lvi.iItem = ListView_GetItemCount(hWnd);
+				ListView_InsertItem(hWnd, (LPLVITEM)&lvi);
+				TCHAR BlockNo[3];
+				_stprintf_s(BlockNo, _T("%d"), i);
+				ListView_SetItemText(hWnd, ListView_GetItemCount(hWnd) - 1, 1, BlockNo);
+			}
 		}
 	}
 	ListView_SetColumnWidth(hWnd, 0, LVSCW_AUTOSIZE_USEHEADER);
