@@ -16,7 +16,7 @@ HWND m_hWnd;									//ウインドウハンドル
 MEMORYCARD byteMemDat;	//メモリーカードデータ格納先
 
 // このコード モジュールに含まれる関数の宣言を転送します:
-ATOM				MyRegisterClass(HINSTANCE hInstance);
+//ATOM				MyRegisterClass(HINSTANCE hInstance);
 BOOL				InitInstance(HINSTANCE, int);
 INT_PTR CALLBACK	About(HWND, UINT, WPARAM, LPARAM);
 INT_PTR CALLBACK DialogProc(
@@ -24,7 +24,7 @@ INT_PTR CALLBACK DialogProc(
 	_In_  UINT uMsg,
 	_In_  WPARAM wParam,
 	_In_  LPARAM lParam
-	);
+);
 
 byte CreateXOR(short adr, byte* dat);
 BOOL ReadFromFile();
@@ -38,24 +38,24 @@ void ProgressBar_Step();
 BOOL UpdateDataList(MEMORYCARD* data);
 
 int APIENTRY _tWinMain(_In_ HINSTANCE hInstance,
-                     _In_opt_ HINSTANCE hPrevInstance,
-                     _In_ LPTSTR    lpCmdLine,
-                     _In_ int       nCmdShow)
+	_In_opt_ HINSTANCE hPrevInstance,
+	_In_ LPTSTR    lpCmdLine,
+	_In_ int       nCmdShow)
 {
 	UNREFERENCED_PARAMETER(hPrevInstance);
 	UNREFERENCED_PARAMETER(lpCmdLine);
 
- 	// TODO: ここにコードを挿入してください。
+	// TODO: ここにコードを挿入してください。
 	MSG msg;
 	HACCEL hAccelTable;
 
 	// グローバル文字列を初期化しています。
 	LoadString(hInstance, IDS_APP_TITLE, szTitle, MAX_LOADSTRING);
 	LoadString(hInstance, IDC_WIN32PROJECT1, szWindowClass, MAX_LOADSTRING);
-//	MyRegisterClass(hInstance);
+	//	MyRegisterClass(hInstance);
 
-	// アプリケーションの初期化を実行します:
-	if (!InitInstance (hInstance, nCmdShow))
+		// アプリケーションの初期化を実行します:
+	if (!InitInstance(hInstance, nCmdShow))
 	{
 		return FALSE;
 	}
@@ -72,7 +72,7 @@ int APIENTRY _tWinMain(_In_ HINSTANCE hInstance,
 		}
 	}
 
-	return (int) msg.wParam;
+	return (int)msg.wParam;
 }
 
 
@@ -115,22 +115,22 @@ int APIENTRY _tWinMain(_In_ HINSTANCE hInstance,
 //
 BOOL InitInstance(HINSTANCE hInstance, int nCmdShow)
 {
-   HWND hWnd;
+	HWND hWnd;
 
-   hInst = hInstance; // グローバル変数にインスタンス処理を格納します。
+	hInst = hInstance; // グローバル変数にインスタンス処理を格納します。
 
-   hWnd = CreateDialog(hInstance, MAKEINTRESOURCE(IDD_MAINDIALOG), NULL, DialogProc);
-   m_hWnd = hWnd;
+	hWnd = CreateDialog(hInstance, MAKEINTRESOURCE(IDD_MAINDIALOG), NULL, DialogProc);
+	m_hWnd = hWnd;
 
-   if (!hWnd)
-   {
-      return FALSE;
-   }
+	if (!hWnd)
+	{
+		return FALSE;
+	}
 
-   ShowWindow(hWnd, nCmdShow);
-   UpdateWindow(hWnd);
+	ShowWindow(hWnd, nCmdShow);
+	UpdateWindow(hWnd);
 
-   return TRUE;
+	return TRUE;
 }
 
 INT_PTR CALLBACK DialogProc(
@@ -138,7 +138,7 @@ INT_PTR CALLBACK DialogProc(
 	_In_  UINT uMsg,
 	_In_  WPARAM wParam,
 	_In_  LPARAM lParam
-	)
+)
 {
 	UNREFERENCED_PARAMETER(lParam);
 	switch (uMsg)
@@ -226,12 +226,12 @@ BOOL ReadFromFile()
 {
 	IFileOpenDialog *pDlg;
 	COMDLG_FILTERSPEC FileTypes[] = {
-		{ L"MemoryCard files", L"*.mem;*.psm" },
+		{ L"MemoryCard files", L"*.mcr;*.mem;*.psm" },
 		{ L"All files", L"*.*" }
 	};
 
 	HRESULT hr = CoCreateInstance(CLSID_FileOpenDialog, NULL, CLSCTX_INPROC_SERVER, IID_PPV_ARGS(&pDlg));
-	WCHAR cPath[MAX_PATH]=L"";
+	WCHAR cPath[MAX_PATH] = L"";
 	GetCurrentDirectoryW(sizeof(cPath) / sizeof(cPath[0]), cPath);
 	IShellItem *psiFolder, *psiParent;
 	SHCreateItemFromParsingName(cPath, NULL, IID_PPV_ARGS(&psiFolder));
@@ -242,7 +242,7 @@ BOOL ReadFromFile()
 	//フィルターの指定
 	pDlg->SetFileTypes(_countof(FileTypes), FileTypes);
 	//ダイアログ表示
-	hr=pDlg->Show(NULL);
+	hr = pDlg->Show(NULL);
 
 	//ファイル名
 	LPOLESTR pwsz = NULL;
@@ -257,11 +257,11 @@ BOOL ReadFromFile()
 			if (SUCCEEDED(hr))
 			{
 				HANDLE hFile;
-				hFile=CreateFile(pwsz, GENERIC_READ, FILE_SHARE_READ, NULL, OPEN_EXISTING, 0, NULL);
+				hFile = CreateFile(pwsz, GENERIC_READ, FILE_SHARE_READ, NULL, OPEN_EXISTING, 0, NULL);
 				if (hFile)
 				{
 					DWORD BytesRead;
-					BOOL b=ReadFile(hFile, byteMemDat.Byte, sizeof(byteMemDat),&BytesRead , NULL);
+					BOOL b = ReadFile(hFile, byteMemDat.Byte, sizeof(byteMemDat), &BytesRead, NULL);
 					if (BytesRead)
 					{
 						CloseHandle(hFile);
@@ -334,14 +334,14 @@ BOOL WriteToFile()
 {
 	IFileSaveDialog *pDlg;
 	COMDLG_FILTERSPEC FileTypes[] = {
-		{ L"MemoryCard files", L"*.mem;*.psm" },
+		{ L"MemoryCard files", L"*.mcr;*.mem;*.psm" },
 		{ L"All files", L"*.*" }
 	};
 
 	HRESULT hr = CoCreateInstance(CLSID_FileSaveDialog, NULL, CLSCTX_INPROC_SERVER, IID_PPV_ARGS(&pDlg));
-	WCHAR cPath[MAX_PATH]=L"";
+	WCHAR cPath[MAX_PATH] = L"";
 	GetCurrentDirectoryW(sizeof(cPath) / sizeof(cPath[0]), cPath);
-	IShellItem *psiFolder=NULL, *psiParent=NULL;
+	IShellItem *psiFolder = NULL, *psiParent = NULL;
 	SHCreateItemFromParsingName(cPath, NULL, IID_PPV_ARGS(&psiFolder));
 	psiFolder->GetParent(&psiParent);
 
@@ -432,7 +432,7 @@ BOOL WriteToCard()
 					if (Length != sizeof(InData))
 					{
 						TCHAR strBuf[128];
-						_stprintf_s(strBuf, _T("Error among Write Frame %d.\nPlease Reconnect Memory Card Adaptor."), i);
+						_stprintf_s(strBuf, sizeof(strBuf) / sizeof(strBuf[0]), _T("Error among Write Frame %d.\nPlease Reconnect Memory Card Adaptor."), i);
 						MessageBox(NULL, strBuf, szTitle, MB_OK);
 						CloseDevice(&deviceData);
 
@@ -463,7 +463,7 @@ BOOL WriteToCard()
 byte CreateXOR(short adr, byte* dat)
 {
 	byte xor = 0;
-	xor ^= (adr>>8) & 0xff;
+	xor ^= (adr >> 8) & 0xff;
 	xor ^= adr & 0xff;
 	for (int i = 0; i < 128; i++)
 	{
@@ -516,7 +516,7 @@ BOOL SetupWinUsb(DEVICE_DATA *deviceData)
 
 	if (FALSE == bResult || lengthReceived != sizeof(deviceDesc))
 	{
-		_stprintf_s(strBuf, sizeof(strBuf), _T("Error among LastError %d or lengthReceived %d\n"),
+		_stprintf_s(strBuf, sizeof(strBuf) / sizeof(strBuf[0]), _T("Error among LastError %d or lengthReceived %d\n"),
 			FALSE == bResult ? GetLastError() : 0,
 			lengthReceived);
 		MessageBox(NULL, strBuf, NULL, MB_OK);
@@ -596,22 +596,26 @@ BOOL UpdateDataList(MEMORYCARD* data)
 	//データ名表示
 	for (int i = 0; i < 16; i++)
 	{
-		if (data->Block[i][0] == 'S' && data->Block[i][1] == 'C')
+		//ブロックが使用中で、セーブデータの先頭ブロックか
+		if ((data->Block[0][128 * i]) == 0x51)
 		{
-			char strTitle[0x5f - 0x03];
-			LVITEM lvi = { 0, };
-			//strcpy_s(strTitle, sizeof(strTitle), (char*)&data->Block[i][4]);
-			StringCchCopyA(strTitle, sizeof(strTitle), (char*)&data->Block[i][4]);
-			//文字コード変換
-			CA2T wstrTitle(strTitle);
+			if (data->Block[i][0] == 'S' && data->Block[i][1] == 'C')
+			{
+				char strTitle[0x5f - 0x03];
+				LVITEM lvi = { 0, };
+				//strcpy_s(strTitle, sizeof(strTitle), (char*)&data->Block[i][4]);
+				StringCchCopyA(strTitle, sizeof(strTitle), (char*)&data->Block[i][4]);
+				//文字コード変換
+				CA2T wstrTitle(strTitle);
 
-			lvi.pszText = wstrTitle;
-			lvi.mask = LVIF_TEXT;
-			lvi.iItem = ListView_GetItemCount(hWnd);
-			ListView_InsertItem(hWnd, (LPLVITEM)&lvi);
-			TCHAR BlockNo[3];
-			_stprintf_s(BlockNo, _T("%d"), i);
-			ListView_SetItemText(hWnd, ListView_GetItemCount(hWnd)-1, 1, BlockNo);
+				lvi.pszText = wstrTitle;
+				lvi.mask = LVIF_TEXT;
+				lvi.iItem = ListView_GetItemCount(hWnd);
+				ListView_InsertItem(hWnd, (LPLVITEM)&lvi);
+				TCHAR BlockNo[3];
+				_stprintf_s(BlockNo, _T("%d"), i);
+				ListView_SetItemText(hWnd, ListView_GetItemCount(hWnd) - 1, 1, BlockNo);
+			}
 		}
 	}
 	ListView_SetColumnWidth(hWnd, 0, LVSCW_AUTOSIZE_USEHEADER);
