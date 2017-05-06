@@ -7,7 +7,7 @@ Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "Driver", "Driver\Driver.vcx
 EndProject
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "Anthony", "Anthony\Anthoy.vcxproj", "{B0A8068D-16C6-46D0-9DAD-C802F9A48FED}"
 EndProject
-Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "AnthonyPS2", "AnthonyPS2\PS2.vcxproj", "{06DF9C2C-497D-437C-B922-37E77CC7D711}"
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "AnthonyPS2", "AnthonyPS2\AnthonyPS2.vcxproj", "{06DF9C2C-497D-437C-B922-37E77CC7D711}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution

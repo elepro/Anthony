@@ -341,7 +341,7 @@ BOOL ReadFromCard()
 	else
 	{
 		TCHAR strBuf[128];
-		if (LoadString(hInst, IDS_ERROR_DEVICE_ATTACH, strBuf, sizeof(strBuf) / sizeof(strBuf[0])))
+		if (LoadString(hInst, IDS_ERROR_CARDINFO, strBuf, sizeof(strBuf) / sizeof(strBuf[0])))
 		{
 			MessageBox(m_hWnd, strBuf, szTitle, MB_OK);
 		}
@@ -408,59 +408,82 @@ BOOL WriteToFile()
 //メモリーカードに書き込む。
 BOOL WriteToCard()
 {
+	//確認メッセージ
 	TCHAR msg[255];
 	if (LoadString(hInst, IDS_WRITE_CARD, msg, sizeof(msg) / sizeof(msg[0])))
 	{
-		if (MessageBox(m_hWnd, msg, szTitle, MB_OKCANCEL) == IDOK)
+		if (MessageBox(m_hWnd, msg, szTitle, MB_OKCANCEL) != IDOK)
 		{
-			//ブロック毎のページ数が0だったら書き込まない
-			if (byteMemDat.Superblock.pages_per_block == 0)
-			{
-				if (LoadString(hInst, IDS_CANNOT_WRITE, msg, sizeof(msg) / sizeof(msg[0])))
-				{
-					MessageBox(m_hWnd, msg, szTitle, MB_OK | MB_ICONEXCLAMATION);
-				}
-				return FALSE;
-			}
+			return FALSE;
+		}
+	}
+	else
+	{
+		return FALSE;
+	}
 
-			//書き込み処理
-			int r;
-			BOOL res = TRUE;
-			//メモリーカードアダプタ接続
-			r = usbd_attach_device(0, 0);
-			mcio_init();	//返り値は無視
+	//ブロック毎のページ数が0だったら書き込まない
+	if (byteMemDat.Superblock.pages_per_block == 0)
+	{
+		if (LoadString(hInst, IDS_CANNOT_WRITE, msg, sizeof(msg) / sizeof(msg[0])))
+		{
+			MessageBox(m_hWnd, msg, szTitle, MB_OK | MB_ICONEXCLAMATION);
+		}
+		return FALSE;
+	}
+
+	int r;
+	BOOL res = TRUE;
+	//メモリーカードアダプタ接続
+	r = usbd_attach_device(0, 0);
+
+	if (!r)
+	{
+		TCHAR strBuf[128];	//メッセージ表示用
+
+		mcio_init();	//返り値は無視
+
+		int srcpages = byteMemDat.Superblock.clusters_per_card * byteMemDat.Superblock.pages_per_cluster;	//カード全体のページ数
+		int srcblocks = srcpages / byteMemDat.Superblock.pages_per_block;	//カード全体のブロック数
+
+		//プログレスバー更新
+		SetProgressBar(srcblocks);
+
+		int srcpagesize = (byteMemDat.Superblock.page_len + (byteMemDat.Superblock.page_len >> 5));	//ページサイズは512+16
+		int srcblocksize = srcpagesize * byteMemDat.Superblock.pages_per_block;	//ブロックサイズはpagesize*pages_per_block
+		int srccardsize = srcblocksize*srcblocks;
+
+		//イメージファイルが8MB以上だったら書かない
+		if (srccardsize > sizeof(byteMemDat))
+		{
+			res = FALSE;
+			LoadString(hInst, IDS_NOTSUPPORTOVER8MB, strBuf, sizeof(strBuf) / sizeof(strBuf[0]));
+		}
+		else
+		{
+			//書き込む先のカード情報取得
+			int dstpagesize, dstblocksize, dstcardsize, dstcardflags;
+			r = mcio_mcGetInfo(&dstpagesize, &dstblocksize, &dstcardsize, &dstcardflags);
 
 			if (!r)
 			{
-				int pages = byteMemDat.Superblock.clusters_per_card * byteMemDat.Superblock.pages_per_cluster;	//カード全体のページ数
-				int blocks = pages / byteMemDat.Superblock.pages_per_block;	//カード全体のブロック数
-
-				//プログレスバー更新
-				SetProgressBar(blocks);
-
-				int pagesize = (byteMemDat.Superblock.page_len + (byteMemDat.Superblock.page_len >> 5));	//ページサイズは512+16
-				int blocksize = pagesize * byteMemDat.Superblock.pages_per_block;	//ブロックサイズはpagesize*pages_per_block
-
-				//8MB以上だったら書かない
-				if ((blocksize*blocks) > sizeof(byteMemDat))
+				//イメージファイルのページサイズ(ecc抜き)*ページ数と書き込み先サイズが合わなかったら書かない
+				if ((byteMemDat.Superblock.page_len * srcpages) != dstcardsize)
 				{
 					res = FALSE;
-					TCHAR strBuf[128];
-					if (LoadString(hInst, IDS_NOTSUPPORTOVER8MB, strBuf, sizeof(strBuf) / sizeof(strBuf[0])))
-					{
-						MessageBox(NULL, strBuf, szTitle, MB_OK);
-					}
+					LoadString(hInst, IDS_NOTMATCH_CARDSIZE, strBuf, sizeof(strBuf) / sizeof(strBuf[0]));
 				}
 				else
 				{
+					//書き込み処理
 					uint8_t** pagebufarray = (uint8_t**)malloc(sizeof(uint8_t*)*byteMemDat.Superblock.pages_per_block);	//バッファ配列
 					uint8_t** eccbufarray = (uint8_t**)malloc(sizeof(uint8_t*)*byteMemDat.Superblock.pages_per_block);	//バッファ配列
-					for (int i = 0; i < blocks; i++)
+					for (int i = 0; i < srcblocks; i++)
 					{
 						for (int p = 0; p < byteMemDat.Superblock.pages_per_block; p++)
 						{
-							pagebufarray[p] = &(byteMemDat.Byte[(i*blocksize) + p*pagesize]);	//ページバッファ
-							eccbufarray[p] = &(byteMemDat.Byte[(i*blocksize) + (p*pagesize) + byteMemDat.Superblock.page_len]);	//ECCバッファはページデータに続いた場所にある
+							pagebufarray[p] = &(byteMemDat.Byte[(i*srcblocksize) + p*srcpagesize]);	//ページバッファ
+							eccbufarray[p] = &(byteMemDat.Byte[(i*srcblocksize) + (p*srcpagesize) + byteMemDat.Superblock.page_len]);	//ECCバッファはページデータに続いた場所にある
 						}
 
 						//書き込みはブロック単位
@@ -469,11 +492,10 @@ BOOL WriteToCard()
 						{
 							//失敗したときの処理
 							res = FALSE;
-							TCHAR strBuf[128];
-							if (LoadString(hInst, IDS_ERROR_WRITEBLOCK, strBuf, sizeof(strBuf) / sizeof(strBuf[0])))
+							TCHAR strBuf2[128];
+							if (LoadString(hInst, IDS_ERROR_WRITEBLOCK, strBuf2, sizeof(strBuf2) / sizeof(strBuf2[0])))
 							{
-								TCHAR strBuf2[128];
-								_stprintf_s(strBuf2, sizeof(strBuf2) / sizeof(strBuf2[0]), strBuf, i);
+								_stprintf_s(strBuf, sizeof(strBuf) / sizeof(strBuf[0]), strBuf2, i);
 								MessageBox(NULL, strBuf, szTitle, MB_OK);
 							}
 							break;
@@ -484,29 +506,30 @@ BOOL WriteToCard()
 					free(pagebufarray);
 					free(eccbufarray);
 				}
-				if (res)
-				{
-					TCHAR strBuf[128];
-					if (LoadString(hInst, IDS_WRITE_FINISH, strBuf, sizeof(strBuf) / sizeof(strBuf[0])))
-					{
-						MessageBox(NULL, strBuf, szTitle, MB_OK);
-					}
-				}
 			}
 			else
 			{
-				TCHAR strBuf[128];
-				if (LoadString(hInst, IDS_ERROR_DEVICE_ATTACH, strBuf, sizeof(strBuf) / sizeof(strBuf[0])))
-				{
-					MessageBox(m_hWnd, strBuf, szTitle, MB_OK);
-				}
+				res = FALSE;
+				LoadString(hInst, IDS_ERROR_TARGETCARDSIZE, strBuf, sizeof(strBuf) / sizeof(strBuf[0]));
 			}
-			r = usbd_detach_device();
-			return res;
+		}
+		if (res)
+		{
+			//成功時のメッセージ
+			LoadString(hInst, IDS_WRITE_FINISH, strBuf, sizeof(strBuf) / sizeof(strBuf[0]));
+		}
+		MessageBox(NULL, strBuf, szTitle, MB_OK);
+	}
+	else
+	{
+		TCHAR strBuf[128];
+		if (LoadString(hInst, IDS_ERROR_DEVICE_ATTACH, strBuf, sizeof(strBuf) / sizeof(strBuf[0])))
+		{
+			MessageBox(m_hWnd, strBuf, szTitle, MB_OK);
 		}
 	}
-	return FALSE;
-
+	r = usbd_detach_device();
+	return res;
 }
 
 BOOL SetupWinUsb(DEVICE_DATA *deviceData)

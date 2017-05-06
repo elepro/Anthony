@@ -19,17 +19,6 @@ CatalogFile=Anthony.cat
 [Standard.NT$ARCH$]
 %DeviceName% =USB_Install, USB\VID_054c&PID_02ea&REV_0100
 
-; ========== Class definition ===========
-
-[ClassInstall32]
-AddReg = ClassInstall_AddReg
-
-[ClassInstall_AddReg]
-HKR,,,,%ClassName%
-HKR,,NoInstallClass,,1
-HKR,,IconPath,%REG_MULTI_SZ%,"%systemroot%\system32\setupapi.dll,-20"
-HKR,,LowerLogoVersion,,5.2
-
 ; =================== Installation ===================
 
 [USB_Install]

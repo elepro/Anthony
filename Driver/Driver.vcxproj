@@ -48,7 +48,7 @@
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'" Label="Configuration">
     <TargetVersion>WindowsV6.3</TargetVersion>
     <UseDebugLibraries>true</UseDebugLibraries>
-    <PlatformToolset>WindowsKernelModeDriver8.1</PlatformToolset>
+    <PlatformToolset>WindowsKernelModeDriver10.0</PlatformToolset>
     <ConfigurationType>Utility</ConfigurationType>
     <DriverType>Package</DriverType>
     <DisableFastUpToDateCheck>true</DisableFastUpToDateCheck>
@@ -56,7 +56,7 @@
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'" Label="Configuration">
     <TargetVersion>WindowsV6.3</TargetVersion>
     <UseDebugLibraries>false</UseDebugLibraries>
-    <PlatformToolset>WindowsKernelModeDriver8.1</PlatformToolset>
+    <PlatformToolset>WindowsKernelModeDriver10.0</PlatformToolset>
     <ConfigurationType>Utility</ConfigurationType>
     <DriverType>Package</DriverType>
     <DisableFastUpToDateCheck>true</DisableFastUpToDateCheck>
@@ -161,14 +161,12 @@
     <Inf>
       <!-- The WinUSB driver requires KMDF, so we must provide a KMDF version number in the INF. -->
       <!-- Use the user's KMDF setting (defaults to latest) -->
-      <KmdfVersionNumber>$(KMDF_VERSION_MAJOR).$(KMDF_VERSION_MINOR)</KmdfVersionNumber>
     </Inf>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
     <Inf>
       <!-- The WinUSB driver requires KMDF, so we must provide a KMDF version number in the INF. -->
       <!-- Use the user's KMDF setting (defaults to latest) -->
-      <KmdfVersionNumber>$(KMDF_VERSION_MAJOR).$(KMDF_VERSION_MINOR)</KmdfVersionNumber>
     </Inf>
   </ItemDefinitionGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
