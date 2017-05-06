@@ -441,37 +441,49 @@ BOOL WriteToCard()
 				int pagesize = (byteMemDat.Superblock.page_len + (byteMemDat.Superblock.page_len >> 5));	//ページサイズは512+16
 				int blocksize = pagesize * byteMemDat.Superblock.pages_per_block;	//ブロックサイズはpagesize*pages_per_block
 
-				uint8_t** pagebufarray = (uint8_t**)malloc(sizeof(uint8_t*)*byteMemDat.Superblock.pages_per_block);	//バッファ配列
-				uint8_t** eccbufarray = (uint8_t**)malloc(sizeof(uint8_t*)*byteMemDat.Superblock.pages_per_block);	//バッファ配列
-				for (int i = 0; i < blocks; i++)
+				//8MB以上だったら書かない
+				if ((blocksize*blocks) > sizeof(byteMemDat))
 				{
-					for (int p = 0; p < byteMemDat.Superblock.pages_per_block; p++)
+					res = FALSE;
+					TCHAR strBuf[128];
+					if (LoadString(hInst, IDS_NOTSUPPORTOVER8MB, strBuf, sizeof(strBuf) / sizeof(strBuf[0])))
 					{
-						pagebufarray[p] = &(byteMemDat.Byte[(i*blocksize) + p*pagesize]);	//ページバッファ
-						eccbufarray[p] = &(byteMemDat.Byte[(i*blocksize) + (p*pagesize) + byteMemDat.Superblock.page_len]);	//ECCバッファはページデータに続いた場所にある
+						MessageBox(NULL, strBuf, szTitle, MB_OK);
 					}
-
-					//書き込みはブロック単位
-					int r = mcio_mcWriteBlock(i, pagebufarray, eccbufarray);
-					if (r)
-					{
-						//失敗したときの処理
-						res = FALSE;
-						TCHAR strBuf[128];
-						if (LoadString(hInst, IDS_ERROR_WRITEBLOCK, strBuf, sizeof(strBuf) / sizeof(strBuf[0])))
-						{
-							TCHAR strBuf2[128];
-							_stprintf_s(strBuf2, sizeof(strBuf2) / sizeof(strBuf2[0]), strBuf, i);
-							MessageBox(NULL, strBuf, szTitle, MB_OK);
-						}
-						break;
-					}
-					ProgressBar_Step();
 				}
+				else
+				{
+					uint8_t** pagebufarray = (uint8_t**)malloc(sizeof(uint8_t*)*byteMemDat.Superblock.pages_per_block);	//バッファ配列
+					uint8_t** eccbufarray = (uint8_t**)malloc(sizeof(uint8_t*)*byteMemDat.Superblock.pages_per_block);	//バッファ配列
+					for (int i = 0; i < blocks; i++)
+					{
+						for (int p = 0; p < byteMemDat.Superblock.pages_per_block; p++)
+						{
+							pagebufarray[p] = &(byteMemDat.Byte[(i*blocksize) + p*pagesize]);	//ページバッファ
+							eccbufarray[p] = &(byteMemDat.Byte[(i*blocksize) + (p*pagesize) + byteMemDat.Superblock.page_len]);	//ECCバッファはページデータに続いた場所にある
+						}
 
-				//後処理
-				free(pagebufarray);
-				free(eccbufarray);
+						//書き込みはブロック単位
+						int r = mcio_mcWriteBlock(i, pagebufarray, eccbufarray);
+						if (r)
+						{
+							//失敗したときの処理
+							res = FALSE;
+							TCHAR strBuf[128];
+							if (LoadString(hInst, IDS_ERROR_WRITEBLOCK, strBuf, sizeof(strBuf) / sizeof(strBuf[0])))
+							{
+								TCHAR strBuf2[128];
+								_stprintf_s(strBuf2, sizeof(strBuf2) / sizeof(strBuf2[0]), strBuf, i);
+								MessageBox(NULL, strBuf, szTitle, MB_OK);
+							}
+							break;
+						}
+						ProgressBar_Step();
+					}
+					//後処理
+					free(pagebufarray);
+					free(eccbufarray);
+				}
 				if (res)
 				{
 					TCHAR strBuf[128];
