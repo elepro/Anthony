@@ -309,11 +309,20 @@ BOOL ReadFromCard()
 			d = GetLastError();
 			//		Sleep(100);
 			b = WinUsb_ReadPipe(deviceData.WinusbHandle, 129, InData, 144, &Length, NULL);
-			if (Length != 144)
+
+			//ñﬂÇËÇÃêÊì™2byteÇ™0x55,0x5aÇ∂Ç·Ç»Ç©Ç¡ÇΩÇÁÉGÉâÅ[Ç∆Ç∑ÇÈ
+			if ((InData[0] != 0x55) || (InData[1] != 0x5a))
 			{
-				ULONG LeftLength = 0;
-				WinUsb_ReadPipe(deviceData.WinusbHandle, 129, &InData[Length], 144 - Length, &LeftLength, NULL);
+				TCHAR strBuf[128];
+				_stprintf_s(strBuf, sizeof(strBuf) / sizeof(strBuf[0]), _T("Error among Read Frame %d.\nPlease Reconnect Memory Card Adaptor."), i);
+				MessageBox(NULL, strBuf, szTitle, MB_OK);
+				break;
 			}
+			//if (Length != 144)
+			//{
+			//	ULONG LeftLength = 0;
+			//	WinUsb_ReadPipe(deviceData.WinusbHandle, 129, &InData[Length], 144 - Length, &LeftLength, NULL);
+			//}
 
 			if (b)
 			{
