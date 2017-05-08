@@ -496,7 +496,6 @@ BOOL WriteToCard()
 							if (LoadString(hInst, IDS_ERROR_WRITEBLOCK, strBuf2, sizeof(strBuf2) / sizeof(strBuf2[0])))
 							{
 								_stprintf_s(strBuf, sizeof(strBuf) / sizeof(strBuf[0]), strBuf2, i);
-								MessageBox(NULL, strBuf, szTitle, MB_OK);
 							}
 							break;
 						}
