@@ -145,9 +145,6 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
-    <Text Include="ReadMe.txt" />
-  </ItemGroup>
-  <ItemGroup>
     <ClInclude Include="..\Anthony\device.h" />
     <ClInclude Include="Anthony.h" />
     <ClInclude Include="cipher.h" />
