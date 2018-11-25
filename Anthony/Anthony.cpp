@@ -33,7 +33,7 @@ BOOL WriteToCard();
 BOOL WriteToFile();
 BOOL SetupWinUsb(DEVICE_DATA *deviceData);
 
-void SetProgressBar();
+void SetProgressBar(int);
 void ProgressBar_Step();
 BOOL UpdateDataList(MEMORYCARD* data);
 
@@ -289,14 +289,15 @@ BOOL ReadFromCard()
 	BOOL b = SetupWinUsb(&deviceData);
 	if (b)
 	{
+		int frames = 64 * 16;
 		//プログレスバー更新
-		SetProgressBar();
+		SetProgressBar(frames);
 
 		ULONG Length;
 		UCHAR OutData[144] = { 0xaa, 0x42, 0x8c, 0x00, 0x81, 0x52, 0x0 };
 		UCHAR InData[144] = { 0x0 };
 		//	OVERLAPPED ol;
-		for (int i = 0; i < 64 * 16; i++)
+		for (int i = 0; i < frames; i++)
 		{
 			//アドレス指定
 			OutData[8] = (i & 0xff00) >> 8;
@@ -413,14 +414,15 @@ BOOL WriteToCard()
 			BOOL b = SetupWinUsb(&deviceData);
 			if (b)
 			{
+				int frames = 64 * 16;
 				//プログレスバー更新
-				SetProgressBar();
+				SetProgressBar(frames);
 
 				ULONG Length;
 				UCHAR OutData[142] = { 0xaa, 0x42, 0x8a, 0x00, 0x81, 0x57, 0x0 };
 				UCHAR InData[142] = { 0x0 };
 				//	OVERLAPPED ol;
-				for (int i = 0; i < 64 * 16; i++)
+				for (int i = 0; i < frames; i++)
 				{
 					//アドレス指定
 					OutData[8] = (i & 0xff00) >> 8;
@@ -580,10 +582,10 @@ BOOL SetupWinUsb(DEVICE_DATA *deviceData)
 }
 
 //プログレスバーの設定
-void SetProgressBar()
+void SetProgressBar(int max)
 {
 	HWND hProg = GetDlgItem(m_hWnd, IDC_PROGRESS1);
-	SendMessage(hProg, PBM_SETRANGE, 0, MAKELPARAM(0, 64 * 16));
+	SendMessage(hProg, PBM_SETRANGE, 0, MAKELPARAM(0, max));
 	SendMessage(hProg, PBM_SETSTEP, 1, 0);
 
 }

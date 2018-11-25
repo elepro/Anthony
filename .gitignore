@@ -158,3 +158,8 @@ $RECYCLE.BIN/
 .DS_Store
 /Anthony.VC.db
 /Anthony.VC.VC.opendb
+/.vs/Anthony/v15/Browse.VC.db
+*.opendb
+*.db
+*.db-wal
+/.vs/Anthony/v15/Solution.VC.db-shm

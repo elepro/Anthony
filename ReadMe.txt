@@ -33,6 +33,13 @@
 	ソースコードを公開することで、後世に資料を残す。
 
 開発環境
+	開発版:
+		Visual Studio 2017(15.9.2)
+			要追加インストール
+			・Spectreの軽減策を含むVisual C++ ATL(x86またはx64)
+			・VC++ 2017 バージョン 15.8 v14.15 Spectre用ライブラリ(x86またはx64)
+		Windows Software Develonment Kit - Windows 10.0.17763.1
+		Windows Driver Kit - Windows 10.0.17763.1
 	Ver0.2現在:
 		Visual Studio 2015
 		Windows SDK for Windows 10, version 1607
