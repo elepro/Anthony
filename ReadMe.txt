@@ -34,12 +34,14 @@
 
 開発環境
 	開発版:
-		Visual Studio 2017(15.9.2)
+		Visual Studio 2019(16.2.0)
 			要追加インストール
-			・Spectreの軽減策を含むVisual C++ ATL(x86またはx64)
-			・VC++ 2017 バージョン 15.8 v14.15 Spectre用ライブラリ(x86またはx64)
-		Windows Software Develonment Kit - Windows 10.0.17763.1
-		Windows Driver Kit - Windows 10.0.17763.1
+			・Spectreの軽減策を含む v142 ビルド ツール用 Visual C++ ATL(x86またはx64)
+			・v142 ビルド ツール用 C++ ATL(x86およびx64)
+			・MSVC v142 - VS 2019 C++ x64/x86 Spectre 軽減ライブラリ (v14.22)
+			・MSVC v142 - VS 2019 C++ x64/x86 ビルドツール(v14.22)
+			・Windows 10 SDK(10.0.18362.0)
+		Windows Driver Kit - Windows 10.0.18362.1
 	Ver0.2現在:
 		Visual Studio 2015
 		Windows SDK for Windows 10, version 1607
