@@ -625,7 +625,7 @@ BOOL UpdateDataList(MEMORYCARD* data)
 				ListView_InsertItem(hWnd, (LPLVITEM)&lvi);
 				TCHAR BlockNo[3];
 				_stprintf_s(BlockNo, _T("%d"), i);
-				ListView_SetItemText(hWnd, ListView_GetItemCount(hWnd) - 1, 1, BlockNo);
+				ListView_SetItemText(hWnd, (WPARAM)ListView_GetItemCount(hWnd) - 1, 1, BlockNo);
 			}
 		}
 	}

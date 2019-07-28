@@ -295,7 +295,7 @@ BOOL ReadFromCard()
 		SetProgressBar(pages);
 
 		//8MB以上だったら読まない
-		if ((pages*(pagesize + eccsize)) > sizeof(byteMemDat))
+		if (((unsigned long long)pages* ((unsigned long long)pagesize + eccsize)) > sizeof(byteMemDat))
 		{
 			res = FALSE;
 			TCHAR strBuf[128];
@@ -439,7 +439,7 @@ BOOL WriteToCard()
 
 	if (!r)
 	{
-		TCHAR strBuf[128];	//メッセージ表示用
+		TCHAR strBuf[128] = {0};	//メッセージ表示用
 
 		mcio_init();	//返り値は無視
 
@@ -695,7 +695,7 @@ BOOL UpdateDataList(PS2MEMORYCARD* data)
 	StringCchCopyA(strVersion, sizeof(strVersion) / sizeof(strVersion[0]), (char*)&data->Superblock.version);
 	//文字コード変換
 	CA2T wstrVersion(strVersion);
-	ListView_SetItemText(hWnd, ListView_GetItemCount(hWnd) - 1, 1, wstrVersion);
+	ListView_SetItemText(hWnd, (WPARAM)ListView_GetItemCount(hWnd) - 1, 1, wstrVersion);
 
 	//Clusters/Card
 	lvi = { 0, };
@@ -706,7 +706,7 @@ BOOL UpdateDataList(PS2MEMORYCARD* data)
 
 	TCHAR strClusters_per_card[10];
 	_stprintf_s(strClusters_per_card,sizeof(strClusters_per_card) / sizeof(strClusters_per_card[0]),_T("%d"), data->Superblock.clusters_per_card);
-	ListView_SetItemText(hWnd, ListView_GetItemCount(hWnd) - 1, 1, strClusters_per_card);
+	ListView_SetItemText(hWnd, (WPARAM)ListView_GetItemCount(hWnd) - 1, 1, strClusters_per_card);
 
 	//Pages/Cluster
 	lvi = { 0, };
@@ -717,7 +717,7 @@ BOOL UpdateDataList(PS2MEMORYCARD* data)
 
 	TCHAR strPages_per_cluster[10];
 	_stprintf_s(strPages_per_cluster, sizeof(strPages_per_cluster) / sizeof(strPages_per_cluster[0]), _T("%d"), data->Superblock.pages_per_cluster);
-	ListView_SetItemText(hWnd, ListView_GetItemCount(hWnd) - 1, 1, strPages_per_cluster);
+	ListView_SetItemText(hWnd, (WPARAM)ListView_GetItemCount(hWnd) - 1, 1, strPages_per_cluster);
 
 	ListView_SetColumnWidth(hWnd, 0, LVSCW_AUTOSIZE_USEHEADER);
 	ListView_SetColumnWidth(hWnd, 1, LVSCW_AUTOSIZE_USEHEADER);
