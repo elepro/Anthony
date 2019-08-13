@@ -36,6 +36,7 @@ BOOL SetupWinUsb(DEVICE_DATA *deviceData);
 
 void SetProgressBar(int);
 void ProgressBar_Step();
+BOOL UpdateFileInfo(PS2MEMORYCARD* data);
 BOOL UpdateDataList(PS2MEMORYCARD* data);
 
 int APIENTRY _tWinMain(_In_ HINSTANCE hInstance,
@@ -271,7 +272,8 @@ BOOL ReadFromFile()
 			}
 		}
 	}
-	UpdateDataList(&byteMemDat);
+	//ファイルから読んだ場合はリスト表示しない
+	UpdateFileInfo(&byteMemDat);
 	return TRUE;
 }
 
@@ -645,54 +647,26 @@ void ProgressBar_Step()
 	UpdateWindow(m_hWnd);
 }
 
-//データリストを更新
-BOOL UpdateDataList(PS2MEMORYCARD* data)
+//ファイルから読んだ場合のファイルの情報表示
+BOOL UpdateFileInfo(PS2MEMORYCARD* data)
 {
 	HWND hWnd = GetDlgItem(m_hWnd, IDC_LIST2);
 	//リストクリア
 	ListView_DeleteAllItems(hWnd);
 
-	//int fd;
-
-	//fd = mcio_mcDopen(".");
-	//if (fd >= 0) {
-	//	struct io_dirent dirent;
-	//	_RPTN(_CRT_WARN, "---------- Filename ----------  |  Type  |  Size  | Last Modification (UTC)\n", NULL);
-	//	do {
-	//		r = mcio_mcDread(fd, &dirent);
-	//		if ((r)) { /* && (strcmp(dirent.name, ".")) && (strcmp(dirent.name, ".."))) { */
-	//			int tabnum = (32 / 7) - (strlen(dirent.name) / 7);
-	//			_RPTN(_CRT_WARN, "%s ", dirent.name);
-	//			int i;
-	//			for (i = 0; i<tabnum; i++)
-	//				_RPTN(_CRT_WARN, "\t", NULL);
-	//			if (!(dirent.stat.mode & sceMcFileAttrSubdir))
-	//				_RPTN(_CRT_WARN, "| <file> | ", NULL);
-	//			else
-	//				_RPTN(_CRT_WARN, "| <dir>  | ", NULL);
-	//			_RPTN(_CRT_WARN, "%-7d", dirent.stat.size);
-	//			_RPTN(_CRT_WARN, "%02d/%02d/%04d-", dirent.stat.mtime.Month, dirent.stat.mtime.Day, dirent.stat.mtime.Year);
-	//			_RPTN(_CRT_WARN, "%02d:%02d:%02d", dirent.stat.mtime.Hour, dirent.stat.mtime.Min, dirent.stat.mtime.Sec);
-	//			_RPTN(_CRT_WARN, "\n", NULL);
-	//		}
-	//	} while (r);
-
-	//	mcio_mcDclose(fd);
-	//}
-
 	//メモリーカード情報表示
 	//本当はゲームリストを表示したい
 
 	//カードのバージョン
-	TCHAR strDesc[]= _T("Version");
+	TCHAR strDesc[] = _T("Version");
 	LVITEM lvi = { 0, };
 	lvi.pszText = strDesc;
 	lvi.mask = LVIF_TEXT;
 	lvi.iItem = ListView_GetItemCount(hWnd);
-	ListView_InsertItem(hWnd, (LPLVITEM)&lvi);
+	ListView_InsertItem(hWnd, (LPLVITEM)& lvi);
 
 	char strVersion[12];
-	StringCchCopyA(strVersion, sizeof(strVersion) / sizeof(strVersion[0]), (char*)&data->Superblock.version);
+	StringCchCopyA(strVersion, sizeof(strVersion) / sizeof(strVersion[0]), (char*)& data->Superblock.version);
 	//文字コード変換
 	CA2T wstrVersion(strVersion);
 	ListView_SetItemText(hWnd, (WPARAM)ListView_GetItemCount(hWnd) - 1, 1, wstrVersion);
@@ -702,10 +676,10 @@ BOOL UpdateDataList(PS2MEMORYCARD* data)
 	lvi.pszText = _T("Clusters/Card");
 	lvi.mask = LVIF_TEXT;
 	lvi.iItem = ListView_GetItemCount(hWnd);
-	ListView_InsertItem(hWnd, (LPLVITEM)&lvi);
+	ListView_InsertItem(hWnd, (LPLVITEM)& lvi);
 
 	TCHAR strClusters_per_card[10];
-	_stprintf_s(strClusters_per_card,sizeof(strClusters_per_card) / sizeof(strClusters_per_card[0]),_T("%d"), data->Superblock.clusters_per_card);
+	_stprintf_s(strClusters_per_card, sizeof(strClusters_per_card) / sizeof(strClusters_per_card[0]), _T("%d"), data->Superblock.clusters_per_card);
 	ListView_SetItemText(hWnd, (WPARAM)ListView_GetItemCount(hWnd) - 1, 1, strClusters_per_card);
 
 	//Pages/Cluster
@@ -713,11 +687,119 @@ BOOL UpdateDataList(PS2MEMORYCARD* data)
 	lvi.pszText = _T("Pages/Cluster");
 	lvi.mask = LVIF_TEXT;
 	lvi.iItem = ListView_GetItemCount(hWnd);
-	ListView_InsertItem(hWnd, (LPLVITEM)&lvi);
+	ListView_InsertItem(hWnd, (LPLVITEM)& lvi);
 
 	TCHAR strPages_per_cluster[10];
 	_stprintf_s(strPages_per_cluster, sizeof(strPages_per_cluster) / sizeof(strPages_per_cluster[0]), _T("%d"), data->Superblock.pages_per_cluster);
 	ListView_SetItemText(hWnd, (WPARAM)ListView_GetItemCount(hWnd) - 1, 1, strPages_per_cluster);
+
+	ListView_SetColumnWidth(hWnd, 0, LVSCW_AUTOSIZE_USEHEADER);
+	ListView_SetColumnWidth(hWnd, 1, LVSCW_AUTOSIZE_USEHEADER);
+	return TRUE;
+}
+
+//カードから読んだ場合のデータリスト更新
+BOOL UpdateDataList(PS2MEMORYCARD* data)
+{
+	HWND hWnd = GetDlgItem(m_hWnd, IDC_LIST2);
+	//リストクリア
+	ListView_DeleteAllItems(hWnd);
+
+	int fd;
+	int r;
+	fd = mcio_mcDopen(".");
+	if (fd >= 0) {
+		struct io_dirent dirent;
+		_RPTN(_CRT_WARN, "---------- Filename ----------  |  Type  |  Size  | Last Modification (UTC)\n", NULL);
+		do {
+			r = mcio_mcDread(fd, &dirent);
+			if ((r) && (strcmp(dirent.name, ".")) && (strcmp(dirent.name, ".."))) { 
+				int tabnum = (32 / 7) - (strlen(dirent.name) / 7);
+				_RPTN(_CRT_WARN, "%s ", dirent.name);
+				int i;
+				for (i = 0; i<tabnum; i++)
+					_RPTN(_CRT_WARN, "\t", NULL);
+				if (!(dirent.stat.mode & sceMcFileAttrSubdir))
+				{
+					_RPTN(_CRT_WARN, "| <file> | ", NULL);
+					char strTitle[256];
+					StringCchCopyA(strTitle, sizeof(strTitle) / sizeof(strTitle[0]), dirent.name);
+					//文字コード変換
+					CA2T wstrTitle(strTitle);
+					LVITEM lvi = { 0, };
+					lvi.pszText = wstrTitle;
+					lvi.mask = LVIF_TEXT;
+					lvi.iItem = ListView_GetItemCount(hWnd);
+					ListView_InsertItem(hWnd, (LPLVITEM)& lvi);
+				}
+				else
+				{
+					_RPTN(_CRT_WARN, "| <dir>  | ", NULL);
+					char strPath[256];
+					StringCbPrintfA(strPath, sizeof(strPath) / sizeof(strPath[0]), dirent.name);
+					//フォルダごとの処理
+					int fd;
+					fd = mcio_mcDopen(strPath);
+					if (fd >= 0) {
+						int r;
+						struct io_dirent subdirent;
+						//フォルダ内の各ファイルを探す
+						do {
+							r = mcio_mcDread(fd, &subdirent);
+							if ((r) && (strcmp(subdirent.name, ".")) && (strcmp(subdirent.name, "..")))
+							{
+								//ファイルごとの処理
+								char strPath2[520];
+								StringCbPrintfA(strPath2, sizeof(strPath2) / sizeof(strPath2[0]), "%s/%s", strPath, subdirent.name);
+								//ファイルを開く
+								int fd;
+								fd = mcio_mcOpen(strPath2, sceMcFileAttrReadable | sceMcFileAttrFile);
+								if (fd >= 0) {
+									char buf[sizeof(ICON_SYS)];
+									mcio_mcRead(fd, &buf, sizeof(ICON_SYS));
+									mcio_mcClose(fd);
+									//PS2Dで始まったらPS2データ
+									if (!strncmp((char*)((ICON_SYS*)buf)->PS2D, "PS2D", sizeof(((ICON_SYS*)buf)->PS2D)))
+									{
+										ICON_SYS* buf_icon_sys = (ICON_SYS*)buf;
+										char strTitle[sizeof(buf_icon_sys->title_name_of_savegame)];
+										StringCbPrintfA(strTitle, sizeof(buf_icon_sys->title_name_of_savegame), "%s", (buf_icon_sys->title_name_of_savegame));
+										//文字コード変換
+										CA2T wstrTitle(strTitle);
+										LVITEM lvi = { 0, };
+										lvi.pszText = wstrTitle;
+										lvi.mask = LVIF_TEXT;
+										lvi.iItem = ListView_GetItemCount(hWnd);
+										ListView_InsertItem(hWnd, (LPLVITEM)& lvi);
+									}
+									else if (!strncmp((char*)buf, "SC", 2))
+									{
+										//"SC"で始まったらPS1データ
+										char strTitle[520];
+										StringCbPrintfA(strTitle, 64, "%s", ((char*)& buf) + 0x04);
+										//文字コード変換
+										CA2T wstrTitle(strTitle);
+										LVITEM lvi = { 0, };
+										lvi.pszText = wstrTitle;
+										lvi.mask = LVIF_TEXT;
+										lvi.iItem = ListView_GetItemCount(hWnd);
+										ListView_InsertItem(hWnd, (LPLVITEM)& lvi);
+									}
+								}
+							}
+						} while (r);
+						mcio_mcDclose(fd);
+					}
+				}
+				_RPTN(_CRT_WARN, "%-7d", dirent.stat.size);
+				_RPTN(_CRT_WARN, "%02d/%02d/%04d-", dirent.stat.mtime.Month, dirent.stat.mtime.Day, dirent.stat.mtime.Year);
+				_RPTN(_CRT_WARN, "%02d:%02d:%02d", dirent.stat.mtime.Hour, dirent.stat.mtime.Min, dirent.stat.mtime.Sec);
+				_RPTN(_CRT_WARN, "\n", NULL);
+			}
+		} while (r);
+
+		mcio_mcDclose(fd);
+	}
 
 	ListView_SetColumnWidth(hWnd, 0, LVSCW_AUTOSIZE_USEHEADER);
 	ListView_SetColumnWidth(hWnd, 1, LVSCW_AUTOSIZE_USEHEADER);

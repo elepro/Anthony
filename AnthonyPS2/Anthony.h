@@ -1,7 +1,8 @@
-#pragma once
+﻿#pragma once
 
 #include "resource.h"
 
+//PlayStation 2 icon.sys format https://www.ps2savetools.com/documents/iconsys-format/
 //PlayStation 2 Memory Card File System http://www.csclub.uwaterloo.ca:11068/mymc/ps2mcfs.html
 #pragma pack(1)
 struct MC2
@@ -32,6 +33,31 @@ struct MC2
 	byte card_type;// = 2;				//Memory card type.
 									//Must be 2, indicating that this is a PS2 memory card.
 	byte card_flags;// = 0x52;			//Physical characteristics of the memory card.
+};
+
+struct ICON_SYS
+{
+	byte PS2D[4];
+	uint16_t dummy;
+	uint16_t offset_of_2nd_line_in_titlename;
+	int32_t dummy8;
+	int32_t background_transparency;	//background transparency when save is selected in ps2 browser. 0x00(transparent)to 0x80(opaque)
+	byte background_color_upper_left[16];	//background color upper left(RGB - ) 0x00 – 0x80
+	byte background_color_upper_right[16];	//background color upper right(RGB - ) 0x00 – 0x80
+	byte background_color_lower_left[16];	//background color lower left(RGB - ) 0x00 – 0x80
+	byte background_color_lower_right[16];	//background color lower right(RGB - ) 0x00 – 0x80
+	byte light_1_direction[16];	//light 1 direction
+	byte light_2_direction[16];	//light 2 direction
+	byte light_3_direction[16];	//light 3 direction
+	byte light_1_RGB[16];	//light 1 RGB -
+	byte light_2_RGB[16];	//light 2 RGB -
+	byte light_3_RGB[16];	//Light 3 RGB -
+	byte ambient_light_RGB[16];	//ambient light RGB -
+	byte title_name_of_savegame[68];	// title name of savegame(null terminated, S - JIS format)
+	byte filename_of_normal_icon[64];	//filename of normal icon(null terminated)
+	byte filename_of_icon_file_displayed_when_copying[64];	//filename of icon file displayed when copying(null terminated)
+	byte filename_of_icon_file_displayed_when_deleting[64];	//filename of icon file displayed when deleting(null terminated)
+	byte blank[512];
 };
 #pragma pack()
 
