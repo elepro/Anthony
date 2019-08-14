@@ -34,7 +34,7 @@ BOOL WriteToFile();
 BOOL SetupWinUsb(DEVICE_DATA *deviceData);
 
 void SetProgressBar(int);
-void ProgressBar_Step();
+void SetProgressBarPos(int pos);
 BOOL UpdateDataList(MEMORYCARD* data);
 
 int APIENTRY _tWinMain(_In_ HINSTANCE hInstance,
@@ -331,7 +331,7 @@ BOOL ReadFromCard()
 				//実データは0x0eバイト目から始まる。
 				memcpy(&byteMemDat.Frame[i], &InData[0xe], 128);
 			}
-			ProgressBar_Step();
+			SetProgressBarPos(i);
 		}
 		CloseDevice(&deviceData);
 		UpdateDataList(&byteMemDat);
@@ -455,7 +455,7 @@ BOOL WriteToCard()
 						//読み込んだデータを格納
 					}
 
-					ProgressBar_Step();
+					SetProgressBarPos(i);
 				}
 
 				CloseDevice(&deviceData);
@@ -588,6 +588,14 @@ void SetProgressBar(int max)
 	SendMessage(hProg, PBM_SETRANGE, 0, MAKELPARAM(0, max));
 	SendMessage(hProg, PBM_SETSTEP, 1, 0);
 
+}
+
+//プログレスバーの位置を更新
+void SetProgressBarPos(int pos)
+{
+	HWND hProg = GetDlgItem(m_hWnd, IDC_PROGRESS1);
+	SendMessage(hProg, PBM_SETPOS, pos, 0);
+	UpdateWindow(m_hWnd);
 }
 
 void ProgressBar_Step()

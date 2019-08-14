@@ -35,8 +35,8 @@ BOOL WriteToFile();
 BOOL SetupWinUsb(DEVICE_DATA *deviceData);
 
 void SetProgressBar(int);
-void ProgressBar_Step();
-BOOL UpdateFileInfo(PS2MEMORYCARD* data);
+void SetProgressBarPos(int pos);
+BOOL UpdateDataListfromCard(PS2MEMORYCARD* data);
 BOOL UpdateDataList(PS2MEMORYCARD* data);
 
 int APIENTRY _tWinMain(_In_ HINSTANCE hInstance,
@@ -273,7 +273,7 @@ BOOL ReadFromFile()
 		}
 	}
 	//ファイルから読んだ場合はリスト表示しない
-	UpdateFileInfo(&byteMemDat);
+	UpdateDataList(&byteMemDat);
 	return TRUE;
 }
 
@@ -326,7 +326,7 @@ BOOL ReadFromCard()
 					}
 					break;
 				}
-				ProgressBar_Step();
+				SetProgressBarPos(i);
 			}
 
 			UpdateDataList(&byteMemDat);
@@ -480,32 +480,40 @@ BOOL WriteToCard()
 					//書き込み処理
 					uint8_t** pagebufarray = (uint8_t**)malloc(sizeof(uint8_t*)*byteMemDat.Superblock.pages_per_block);	//バッファ配列
 					uint8_t** eccbufarray = (uint8_t**)malloc(sizeof(uint8_t*)*byteMemDat.Superblock.pages_per_block);	//バッファ配列
-					for (int i = 0; i < srcblocks; i++)
+					if (pagebufarray && eccbufarray)
 					{
-						for (int p = 0; p < byteMemDat.Superblock.pages_per_block; p++)
+						for (int i = 0; i < srcblocks; i++)
 						{
-							pagebufarray[p] = &(byteMemDat.Byte[(i*srcblocksize) + p*srcpagesize]);	//ページバッファ
-							eccbufarray[p] = &(byteMemDat.Byte[(i*srcblocksize) + (p*srcpagesize) + byteMemDat.Superblock.page_len]);	//ECCバッファはページデータに続いた場所にある
-						}
-
-						//書き込みはブロック単位
-						int r = mcio_mcWriteBlock(i, pagebufarray, eccbufarray);
-						if (r)
-						{
-							//失敗したときの処理
-							res = FALSE;
-							TCHAR strBuf2[128];
-							if (LoadString(hInst, IDS_ERROR_WRITEBLOCK, strBuf2, sizeof(strBuf2) / sizeof(strBuf2[0])))
+							for (int p = 0; p < byteMemDat.Superblock.pages_per_block; p++)
 							{
-								_stprintf_s(strBuf, sizeof(strBuf) / sizeof(strBuf[0]), strBuf2, i);
+								pagebufarray[p] = &(byteMemDat.Byte[(i * srcblocksize) + p * srcpagesize]);	//ページバッファ
+								eccbufarray[p] = &(byteMemDat.Byte[(i * srcblocksize) + (p * srcpagesize) + byteMemDat.Superblock.page_len]);	//ECCバッファはページデータに続いた場所にある
 							}
-							break;
+
+							//書き込みはブロック単位
+							int r = mcio_mcWriteBlock(i, pagebufarray, eccbufarray);
+							if (r)
+							{
+								//失敗したときの処理
+								res = FALSE;
+								TCHAR strBuf2[128];
+								if (LoadString(hInst, IDS_ERROR_WRITEBLOCK, strBuf2, sizeof(strBuf2) / sizeof(strBuf2[0])))
+								{
+									_stprintf_s(strBuf, sizeof(strBuf) / sizeof(strBuf[0]), strBuf2, i);
+								}
+								break;
+							}
+							SetProgressBarPos(i);
 						}
-						ProgressBar_Step();
+						//後処理
+						free(pagebufarray);
+						free(eccbufarray);
 					}
-					//後処理
-					free(pagebufarray);
-					free(eccbufarray);
+					else
+					{
+						res = FALSE;
+						LoadString(hInst, IDS_ERROR_ALLOCATEMEMORY, strBuf, sizeof(strBuf) / sizeof(strBuf[0]));
+					}
 				}
 			}
 			else
@@ -637,7 +645,14 @@ void SetProgressBar(int max)
 	HWND hProg = GetDlgItem(m_hWnd, IDC_PROGRESS1);
 	SendMessage(hProg, PBM_SETRANGE, 0, MAKELPARAM(0, max));
 	SendMessage(hProg, PBM_SETSTEP, 1, 0);
+}
 
+//プログレスバーの位置を更新
+void SetProgressBarPos(int pos)
+{
+	HWND hProg = GetDlgItem(m_hWnd, IDC_PROGRESS1);
+	SendMessage(hProg, PBM_SETPOS, pos, 0);
+	UpdateWindow(m_hWnd);
 }
 
 void ProgressBar_Step()
@@ -648,58 +663,57 @@ void ProgressBar_Step()
 }
 
 //ファイルから読んだ場合のファイルの情報表示
-BOOL UpdateFileInfo(PS2MEMORYCARD* data)
+BOOL UpdateDataList(PS2MEMORYCARD* data)
 {
 	HWND hWnd = GetDlgItem(m_hWnd, IDC_LIST2);
 	//リストクリア
 	ListView_DeleteAllItems(hWnd);
 
-	//メモリーカード情報表示
-	//本当はゲームリストを表示したい
+	//クラスタごとにスキャン
+	unsigned short clustersize = data->Superblock.pages_per_cluster * (data->Superblock.page_len + 16);	//16 is spea area
+	for (short i = 1; i < data->Superblock.clusters_per_card; i++)
+	{
+		char* buf = (char*)&data->Byte[clustersize * i];
+		//PS2Dで始まったらPS2データ
+		if (!strncmp((char*)((ICON_SYS*)buf)->PS2D, "PS2D", sizeof(((ICON_SYS*)buf)->PS2D)))
+		{
+			ICON_SYS* buf_icon_sys = (ICON_SYS*)buf;
+			char strTitle[sizeof(buf_icon_sys->title_name_of_savegame)];
+			StringCbPrintfA(strTitle, sizeof(buf_icon_sys->title_name_of_savegame), "%s", (buf_icon_sys->title_name_of_savegame));
+			//文字コード変換
+			CA2T tstrTitle(strTitle);
+			LVITEM lvi = { 0, };
+			lvi.pszText = tstrTitle;
+			lvi.mask = LVIF_TEXT;
+			lvi.iItem = ListView_GetItemCount(hWnd);
+			ListView_InsertItem(hWnd, (LPLVITEM)& lvi);
+		}
+		else if (buf[0] == 'S' && buf[1] == 'C')
+		{
+			//"SC"で始まったらPS1データ
+			char strTitle[0x5f - 0x03];
+			StringCchCopyA(strTitle, sizeof(strTitle), (char*)& buf[4]);
+			//文字コード変換
+			CA2T tstrTitle(strTitle);
 
-	//カードのバージョン
-	TCHAR strDesc[] = _T("Version");
-	LVITEM lvi = { 0, };
-	lvi.pszText = strDesc;
-	lvi.mask = LVIF_TEXT;
-	lvi.iItem = ListView_GetItemCount(hWnd);
-	ListView_InsertItem(hWnd, (LPLVITEM)& lvi);
-
-	char strVersion[12];
-	StringCchCopyA(strVersion, sizeof(strVersion) / sizeof(strVersion[0]), (char*)& data->Superblock.version);
-	//文字コード変換
-	CA2T wstrVersion(strVersion);
-	ListView_SetItemText(hWnd, (WPARAM)ListView_GetItemCount(hWnd) - 1, 1, wstrVersion);
-
-	//Clusters/Card
-	lvi = { 0, };
-	lvi.pszText = _T("Clusters/Card");
-	lvi.mask = LVIF_TEXT;
-	lvi.iItem = ListView_GetItemCount(hWnd);
-	ListView_InsertItem(hWnd, (LPLVITEM)& lvi);
-
-	TCHAR strClusters_per_card[10];
-	_stprintf_s(strClusters_per_card, sizeof(strClusters_per_card) / sizeof(strClusters_per_card[0]), _T("%d"), data->Superblock.clusters_per_card);
-	ListView_SetItemText(hWnd, (WPARAM)ListView_GetItemCount(hWnd) - 1, 1, strClusters_per_card);
-
-	//Pages/Cluster
-	lvi = { 0, };
-	lvi.pszText = _T("Pages/Cluster");
-	lvi.mask = LVIF_TEXT;
-	lvi.iItem = ListView_GetItemCount(hWnd);
-	ListView_InsertItem(hWnd, (LPLVITEM)& lvi);
-
-	TCHAR strPages_per_cluster[10];
-	_stprintf_s(strPages_per_cluster, sizeof(strPages_per_cluster) / sizeof(strPages_per_cluster[0]), _T("%d"), data->Superblock.pages_per_cluster);
-	ListView_SetItemText(hWnd, (WPARAM)ListView_GetItemCount(hWnd) - 1, 1, strPages_per_cluster);
+			LVITEM lvi = { 0, };
+			lvi.pszText = tstrTitle;
+			lvi.mask = LVIF_TEXT;
+			lvi.iItem = ListView_GetItemCount(hWnd);
+			ListView_InsertItem(hWnd, (LPLVITEM)& lvi);
+		}
+		else
+		{
+		}
+	}
 
 	ListView_SetColumnWidth(hWnd, 0, LVSCW_AUTOSIZE_USEHEADER);
 	ListView_SetColumnWidth(hWnd, 1, LVSCW_AUTOSIZE_USEHEADER);
 	return TRUE;
 }
 
-//カードから読んだ場合のデータリスト更新
-BOOL UpdateDataList(PS2MEMORYCARD* data)
+//カードから読んだ場合のデータリスト更新(for Development)
+BOOL UpdateDataListfromCard(PS2MEMORYCARD* data)
 {
 	HWND hWnd = GetDlgItem(m_hWnd, IDC_LIST2);
 	//リストクリア
@@ -765,26 +779,29 @@ BOOL UpdateDataList(PS2MEMORYCARD* data)
 										char strTitle[sizeof(buf_icon_sys->title_name_of_savegame)];
 										StringCbPrintfA(strTitle, sizeof(buf_icon_sys->title_name_of_savegame), "%s", (buf_icon_sys->title_name_of_savegame));
 										//文字コード変換
-										CA2T wstrTitle(strTitle);
+										CA2T tstrTitle(strTitle);
 										LVITEM lvi = { 0, };
-										lvi.pszText = wstrTitle;
+										lvi.pszText = tstrTitle;
 										lvi.mask = LVIF_TEXT;
 										lvi.iItem = ListView_GetItemCount(hWnd);
 										ListView_InsertItem(hWnd, (LPLVITEM)& lvi);
 									}
-									else if (!strncmp((char*)buf, "SC", 2))
+									else if (buf[0] == 'S' && buf[1] == 'C')
 									{
 										//"SC"で始まったらPS1データ
-										char strTitle[520];
-										StringCbPrintfA(strTitle, 64, "%s", ((char*)& buf) + 0x04);
+										char strTitle[0x5f - 0x03];
+										StringCchCopyA(strTitle, sizeof(strTitle), (char*)& buf[4]);
 										//文字コード変換
-										CA2T wstrTitle(strTitle);
+										CA2T tstrTitle(strTitle);
+
 										LVITEM lvi = { 0, };
-										lvi.pszText = wstrTitle;
+										lvi.pszText = tstrTitle;
 										lvi.mask = LVIF_TEXT;
 										lvi.iItem = ListView_GetItemCount(hWnd);
 										ListView_InsertItem(hWnd, (LPLVITEM)& lvi);
 									}
+									else
+									{ }
 								}
 							}
 						} while (r);
