@@ -164,3 +164,6 @@ $RECYCLE.BIN/
 *.db-wal
 /.vs/Anthony/v15/Solution.VC.db-shm
 /.vs/Anthony/v16/Solution.VC.db-shm
+/.vs/VSWorkspaceState.json
+/.vs/slnx.sqlite
+/.vs/ProjectSettings.json
