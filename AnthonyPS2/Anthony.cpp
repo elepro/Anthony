@@ -671,7 +671,7 @@ BOOL UpdateDataList(PS2MEMORYCARD* data)
 
 	//クラスタごとにスキャン
 	unsigned short clustersize = data->Superblock.pages_per_cluster * (data->Superblock.page_len + 16);	//16 is spea area
-	for (short i = 1; i < data->Superblock.clusters_per_card; i++)
+	for (unsigned short i = 1; i < data->Superblock.clusters_per_card; i++)
 	{
 		char* buf = (char*)&data->Byte[clustersize * i];
 		//PS2Dで始まったらPS2データ
