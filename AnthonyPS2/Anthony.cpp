@@ -322,7 +322,7 @@ BOOL ReadFromCard()
 					{
 						TCHAR strBuf2[128];
 						_stprintf_s(strBuf2, sizeof(strBuf2) / sizeof(strBuf2[0]), strBuf, i);
-						MessageBox(NULL, strBuf, szTitle, MB_OK);
+						MessageBox(NULL, strBuf2, szTitle, MB_OK);
 					}
 					break;
 				}
