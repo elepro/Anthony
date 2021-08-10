@@ -297,7 +297,7 @@ BOOL ReadFromCard()
 		SetProgressBar(pages);
 
 		//8MBˆÈã‚¾‚Á‚½‚ç“Ç‚Ü‚È‚¢
-		if (((unsigned long long)pages* ((unsigned long long)pagesize + eccsize)) > sizeof(byteMemDat))
+		if (((unsigned long long)pages * ((unsigned long long)pagesize + eccsize)) > sizeof(byteMemDat))
 		{
 			res = FALSE;
 			TCHAR strBuf[128];
@@ -624,7 +624,7 @@ BOOL SetupWinUsb(DEVICE_DATA *deviceData)
 			USB_ENDPOINT_DIRECTION_OUT(pipeInfo.PipeId))
 		{
 			int bulkOutPipe;
-			bulkOutPipe = bulkOutPipe = pipeInfo.PipeId;
+			bulkOutPipe = pipeInfo.PipeId;
 		}
 		else if (pipeInfo.PipeType == UsbdPipeTypeInterrupt)
 		{

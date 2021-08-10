@@ -10,6 +10,7 @@ Class     = USBDevice
 ClassGUID = {88BAE032-5A81-49f0-BC3D-A4FF138216D6}
 Provider = %ManufacturerName%
 CatalogFile=Anthony.cat
+PnpLockDown=1
 
 ; ========== Manufacturer/Models sections ===========
 

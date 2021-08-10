@@ -286,6 +286,8 @@ BOOL ReadFromFile()
 BOOL ReadFromCard()
 {
 	DEVICE_DATA	deviceData;
+	const UCHAR readPipe = 129;
+	const UCHAR writePipe = 2;
 	BOOL b = SetupWinUsb(&deviceData);
 	if (b)
 	{
@@ -303,13 +305,13 @@ BOOL ReadFromCard()
 			OutData[8] = (i & 0xff00) >> 8;
 			OutData[9] = (i & 0xff);
 
-			WinUsb_ResetPipe(deviceData.WinusbHandle, 2);
-			WinUsb_ResetPipe(deviceData.WinusbHandle, 129);
-			b = WinUsb_WritePipe(deviceData.WinusbHandle, 2, OutData, 144, &Length, NULL);
+			WinUsb_ResetPipe(deviceData.WinusbHandle, writePipe);
+			WinUsb_ResetPipe(deviceData.WinusbHandle, readPipe);
+			b = WinUsb_WritePipe(deviceData.WinusbHandle, writePipe, OutData, 144, &Length, NULL);
 			DWORD d;
 			d = GetLastError();
 			//		Sleep(100);
-			b = WinUsb_ReadPipe(deviceData.WinusbHandle, 129, InData, 144, &Length, NULL);
+			b = WinUsb_ReadPipe(deviceData.WinusbHandle, readPipe, InData, 144, &Length, NULL);
 
 			//戻りの先頭2byteが0x55,0x5aじゃなかったらエラーとする
 			if ((InData[0] != 0x55) || (InData[1] != 0x5a))
@@ -322,7 +324,7 @@ BOOL ReadFromCard()
 			//if (Length != 144)
 			//{
 			//	ULONG LeftLength = 0;
-			//	WinUsb_ReadPipe(deviceData.WinusbHandle, 129, &InData[Length], 144 - Length, &LeftLength, NULL);
+			//	WinUsb_ReadPipe(deviceData.WinusbHandle, readPipe, &InData[Length], 144 - Length, &LeftLength, NULL);
 			//}
 
 			if (b)
@@ -407,6 +409,8 @@ BOOL WriteToCard()
 {
 	DEVICE_DATA	deviceData;
 	TCHAR msg[255];
+	const UCHAR readPipe = 129;
+	const UCHAR writePipe = 2;
 	if (LoadString(hInst, IDS_WRITE_CARD, msg, sizeof(msg) / sizeof(msg[0])))
 	{
 		if (MessageBox(m_hWnd, msg, szTitle, MB_OKCANCEL) == IDOK)
@@ -432,14 +436,14 @@ BOOL WriteToCard()
 					//XORフラグを取得
 					OutData[10 + 128] = CreateXOR((short)i, byteMemDat.Frame[i]);
 
-					WinUsb_FlushPipe(deviceData.WinusbHandle, 2);
-					WinUsb_FlushPipe(deviceData.WinusbHandle, 129);
-					b = WinUsb_WritePipe(deviceData.WinusbHandle, 2, OutData, sizeof(OutData), &Length, NULL);
+					WinUsb_FlushPipe(deviceData.WinusbHandle, writePipe);
+					WinUsb_FlushPipe(deviceData.WinusbHandle, readPipe);
+					b = WinUsb_WritePipe(deviceData.WinusbHandle, writePipe, OutData, sizeof(OutData), &Length, NULL);
 					DWORD d = 0;
 					d = GetLastError();
 					Sleep(50);
 					memset(InData, 0, sizeof(InData));
-					b = WinUsb_ReadPipe(deviceData.WinusbHandle, 129, InData, sizeof(InData), &Length, NULL);
+					b = WinUsb_ReadPipe(deviceData.WinusbHandle, readPipe, InData, sizeof(InData), &Length, NULL);
 					if (Length != sizeof(InData))
 					{
 						TCHAR strBuf[128];
@@ -566,7 +570,7 @@ BOOL SetupWinUsb(DEVICE_DATA *deviceData)
 			USB_ENDPOINT_DIRECTION_OUT(pipeInfo.PipeId))
 		{
 			int bulkOutPipe;
-			bulkOutPipe = bulkOutPipe = pipeInfo.PipeId;
+			bulkOutPipe = pipeInfo.PipeId;
 		}
 		else if (pipeInfo.PipeType == UsbdPipeTypeInterrupt)
 		{
