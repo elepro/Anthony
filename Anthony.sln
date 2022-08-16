@@ -1,10 +1,8 @@
 ﻿
 Microsoft Visual Studio Solution File, Format Version 12.00
-# Visual Studio 15
-VisualStudioVersion = 15.0.28010.2050
+# Visual Studio Version 17
+VisualStudioVersion = 17.2.32630.192
 MinimumVisualStudioVersion = 10.0.40219.1
-Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "Driver", "Driver\Driver.vcxproj", "{63980F7B-429B-4274-A8EE-CFDE43577466}"
-EndProject
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "Anthony", "Anthony\Anthoy.vcxproj", "{B0A8068D-16C6-46D0-9DAD-C802F9A48FED}"
 EndProject
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "AnthonyPS2", "AnthonyPS2\AnthonyPS2.vcxproj", "{06DF9C2C-497D-437C-B922-37E77CC7D711}"
@@ -20,12 +18,6 @@ Global
 		Release|x64 = Release|x64
 	EndGlobalSection
 	GlobalSection(ProjectConfigurationPlatforms) = postSolution
-		{63980F7B-429B-4274-A8EE-CFDE43577466}.Debug|x64.ActiveCfg = Debug|x64
-		{63980F7B-429B-4274-A8EE-CFDE43577466}.Debug|x64.Build.0 = Debug|x64
-		{63980F7B-429B-4274-A8EE-CFDE43577466}.Debug|x64.Deploy.0 = Debug|x64
-		{63980F7B-429B-4274-A8EE-CFDE43577466}.Release|x64.ActiveCfg = Release|x64
-		{63980F7B-429B-4274-A8EE-CFDE43577466}.Release|x64.Build.0 = Release|x64
-		{63980F7B-429B-4274-A8EE-CFDE43577466}.Release|x64.Deploy.0 = Release|x64
 		{B0A8068D-16C6-46D0-9DAD-C802F9A48FED}.Debug|x64.ActiveCfg = Debug|x64
 		{B0A8068D-16C6-46D0-9DAD-C802F9A48FED}.Debug|x64.Build.0 = Debug|x64
 		{B0A8068D-16C6-46D0-9DAD-C802F9A48FED}.Release|x64.ActiveCfg = Release|x64
