@@ -393,11 +393,28 @@ BOOL WriteToFile()
 				hFile = CreateFile(pwsz, GENERIC_WRITE, FILE_SHARE_READ, NULL, CREATE_ALWAYS, 0, NULL);
 				if (hFile)
 				{
-					DWORD BytesWrite;
-					WriteFile(hFile, &(byteMemDat.Byte), sizeof(byteMemDat), &BytesWrite, NULL);
-					if (BytesWrite)
+					if (byteMemDat.Superblock.clusters_per_card > 0 && byteMemDat.Superblock.pages_per_cluster > 0 && byteMemDat.Superblock.pages_per_block > 0)
 					{
-						CloseHandle(hFile);
+						int srcpages = byteMemDat.Superblock.clusters_per_card * byteMemDat.Superblock.pages_per_cluster;	//カード全体のページ数
+						int srcblocks = srcpages / byteMemDat.Superblock.pages_per_block;	//カード全体のブロック数
+
+						int srcpagesize = (byteMemDat.Superblock.page_len + (byteMemDat.Superblock.page_len >> 5));	//ページサイズは512+16
+						int srcblocksize = srcpagesize * byteMemDat.Superblock.pages_per_block;	//ブロックサイズはpagesize*pages_per_block
+						int srccardsize = srcblocksize * srcblocks;
+
+						//イメージファイルが8MB以上だったら書かない
+						if (srccardsize > sizeof(byteMemDat))
+						{
+						}
+						else
+						{
+							DWORD BytesWrite;
+							WriteFile(hFile, &(byteMemDat.Byte), srccardsize, &BytesWrite, NULL);
+							if (BytesWrite)
+							{
+								CloseHandle(hFile);
+							}
+						}
 					}
 				}
 			}
@@ -453,7 +470,7 @@ BOOL WriteToCard()
 
 		int srcpagesize = (byteMemDat.Superblock.page_len + (byteMemDat.Superblock.page_len >> 5));	//ページサイズは512+16
 		int srcblocksize = srcpagesize * byteMemDat.Superblock.pages_per_block;	//ブロックサイズはpagesize*pages_per_block
-		int srccardsize = srcblocksize*srcblocks;
+		int srccardsize = srcblocksize * srcblocks;
 
 		//イメージファイルが8MB以上だったら書かない
 		if (srccardsize > sizeof(byteMemDat))

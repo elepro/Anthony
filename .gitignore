@@ -158,15 +158,7 @@ $RECYCLE.BIN/
 .DS_Store
 /Anthony.VC.db
 /Anthony.VC.VC.opendb
-/.vs/Anthony/v15/Browse.VC.db
 *.opendb
 *.db
 *.db-wal
-/.vs/Anthony/v15/Solution.VC.db-shm
-/.vs/Anthony/v16/Solution.VC.db-shm
-/.vs/VSWorkspaceState.json
-/.vs/slnx.sqlite
-/.vs/ProjectSettings.json
-/.vs/Anthony/v16/Browse.VC.db-shm
-/.vs/Anthony/FileContentIndex
-/.vs/Anthony/v17
+/.vs
