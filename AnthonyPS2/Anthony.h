@@ -63,7 +63,7 @@ struct ICON_SYS
 
 union PS2MEMORYCARD
 {
-	byte Byte[8650752];//[8 * 1024 * (1024+32)];
+	byte Byte[8 * 1024 * (1024 + 32)];//[8 * 1024 * (1024+32)];
 	MC2 Superblock;
 };
 
