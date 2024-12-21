@@ -15,6 +15,8 @@ HINSTANCE hInst;								// 現在のインターフェイス
 TCHAR szTitle[MAX_LOADSTRING];					// タイトル バーのテキスト
 TCHAR szWindowClass[MAX_LOADSTRING];			// メイン ウィンドウ クラス名
 HWND m_hWnd;									//ウインドウハンドル
+HANDLE hThread = NULL;
+BOOL isThreadRunning = FALSE;
 PS2MEMORYCARD byteMemDat;	//メモリーカードデータ格納先
 
 // このコード モジュールに含まれる関数の宣言を転送します:
@@ -28,11 +30,13 @@ INT_PTR CALLBACK DialogProc(
 	_In_  LPARAM lParam
 );
 
+DWORD WINAPI ReadorWrite(LPVOID lpParam);
+
 BOOL ReadFromFile();
 BOOL ReadFromCard();
 BOOL WriteToCard();
 BOOL WriteToFile();
-BOOL SetupWinUsb(DEVICE_DATA *deviceData);
+BOOL SetupWinUsb(DEVICE_DATA* deviceData);
 
 void SetProgressBar(int);
 void SetProgressBarPos(int pos);
@@ -180,21 +184,27 @@ INT_PTR CALLBACK DialogProc(
 			DestroyWindow(hDlg);
 			return (INT_PTR)TRUE;
 		}
-		else if (LOWORD(wParam) == IDC_BUTTON_FROMFILE)
+		else
 		{
-			ReadFromFile();
-		}
-		else if (LOWORD(wParam) == IDC_BUTTON_FROMCARD)
-		{
-			ReadFromCard();
-		}
-		else if (LOWORD(wParam) == IDC_BUTTON_TOFILE)
-		{
-			WriteToFile();
-		}
-		else if (LOWORD(wParam) == IDC_BUTTON_TOCARD)
-		{
-			WriteToCard();
+			switch ((WPARAM)wParam)
+			{
+			case IDC_BUTTON_FROMFILE:
+			case IDC_BUTTON_FROMCARD:
+			case IDC_BUTTON_TOFILE:
+			case IDC_BUTTON_TOCARD:
+				//Read or Write
+				if (!isThreadRunning) // スレッドが実行中でない場合にのみ新しいスレッドを作成
+				{
+					isThreadRunning = TRUE;
+					hThread = CreateThread(NULL, 0, ReadorWrite, (LPVOID)wParam, 0, NULL);
+					if (hThread == NULL)
+					{
+						isThreadRunning = FALSE;
+						MessageBox(m_hWnd, L"Failed to create thread", szTitle, MB_OK);
+					}
+				}
+				break;
+			}
 		}
 		break;
 	case WM_DESTROY:
@@ -202,6 +212,48 @@ INT_PTR CALLBACK DialogProc(
 		break;
 	}
 	return (INT_PTR)FALSE;
+}
+
+DWORD WINAPI ReadorWrite(LPVOID lpParam)
+{
+	CoInitialize(NULL);
+
+	EnableWindow(GetDlgItem(m_hWnd, IDC_BUTTON_FROMFILE), FALSE);
+	EnableWindow(GetDlgItem(m_hWnd, IDC_BUTTON_FROMCARD), FALSE);
+	EnableWindow(GetDlgItem(m_hWnd, IDC_BUTTON_TOFILE), FALSE);
+	EnableWindow(GetDlgItem(m_hWnd, IDC_BUTTON_TOCARD), FALSE);
+
+	WPARAM wParam = (WPARAM)lpParam;
+
+	if (LOWORD(wParam) == IDC_BUTTON_FROMFILE)
+	{
+		ReadFromFile();
+	}
+	else if (LOWORD(wParam) == IDC_BUTTON_FROMCARD)
+	{
+		ReadFromCard();
+	}
+	else if (LOWORD(wParam) == IDC_BUTTON_TOFILE)
+	{
+		WriteToFile();
+	}
+	else if (LOWORD(wParam) == IDC_BUTTON_TOCARD)
+	{
+		WriteToCard();
+	}
+
+	EnableWindow(GetDlgItem(m_hWnd, IDC_BUTTON_FROMFILE), TRUE);
+	EnableWindow(GetDlgItem(m_hWnd, IDC_BUTTON_FROMCARD), TRUE);
+	EnableWindow(GetDlgItem(m_hWnd, IDC_BUTTON_TOFILE), TRUE);
+	EnableWindow(GetDlgItem(m_hWnd, IDC_BUTTON_TOCARD), TRUE);
+
+	isThreadRunning = FALSE; // スレッドの実行が終了したことを示す
+	WaitForSingleObject(hThread, INFINITE);
+	CloseHandle(hThread);
+	hThread = NULL;
+
+	CoUninitialize();
+	return 0;
 }
 
 // バージョン情報ボックスのメッセージ ハンドラーです。
@@ -226,17 +278,28 @@ INT_PTR CALLBACK About(HWND hDlg, UINT message, WPARAM wParam, LPARAM lParam)
 
 BOOL ReadFromFile()
 {
-	IFileOpenDialog *pDlg;
+	IFileOpenDialog* pDlg;
 	COMDLG_FILTERSPEC FileTypes[] = {
 		{ L"PS2 MemoryCard files", L"*.ps2" },
 		{ L"All files", L"*.*" }
 	};
 
 	HRESULT hr = CoCreateInstance(CLSID_FileOpenDialog, NULL, CLSCTX_INPROC_SERVER, IID_PPV_ARGS(&pDlg));
+	if (FAILED(hr)) {
+		MessageBox(m_hWnd, L"Failed to create file open dialog", szTitle, MB_OK);
+		return FALSE;
+	}
+
 	WCHAR cPath[MAX_PATH] = L"";
 	GetCurrentDirectoryW(sizeof(cPath) / sizeof(cPath[0]), cPath);
-	IShellItem *psiFolder, *psiParent;
-	SHCreateItemFromParsingName(cPath, NULL, IID_PPV_ARGS(&psiFolder));
+	IShellItem* psiFolder, * psiParent;
+	hr = SHCreateItemFromParsingName(cPath, NULL, IID_PPV_ARGS(&psiFolder));
+	if (FAILED(hr)) {
+		pDlg->Release();
+		MessageBox(m_hWnd, L"Failed to create shell item from Parsing Name", szTitle, MB_OK);
+		return FALSE;
+	}
+
 	psiFolder->GetParent(&psiParent);
 
 	//初期フォルダの指定
@@ -247,33 +310,54 @@ BOOL ReadFromFile()
 	hr = pDlg->Show(NULL);
 
 	//ファイル名
-	LPOLESTR pwsz = NULL;
 	if (SUCCEEDED(hr))
 	{
-		IShellItem *pItem;
+		IShellItem* pItem;
 		hr = pDlg->GetResult(&pItem);
 		if (SUCCEEDED(hr))
 		{
-
+			LPOLESTR pwsz = NULL;
 			hr = pItem->GetDisplayName(SIGDN_FILESYSPATH, &pwsz);
 			if (SUCCEEDED(hr))
 			{
-				HANDLE hFile;
-				hFile = CreateFile(pwsz, GENERIC_READ, FILE_SHARE_READ, NULL, OPEN_EXISTING, 0, NULL);
-				if (hFile)
+				HANDLE hFile = CreateFile(pwsz, GENERIC_READ, FILE_SHARE_READ, NULL, OPEN_EXISTING, 0, NULL);
+				if (hFile != INVALID_HANDLE_VALUE)
 				{
 					DWORD BytesRead;
-					BOOL b = ReadFile(hFile, &(byteMemDat.Byte), sizeof(byteMemDat), &BytesRead, NULL);
-					if (BytesRead)
+					BOOL b = ReadFile(hFile, byteMemDat.Byte, sizeof(byteMemDat), &BytesRead, NULL);
+					if (b && BytesRead > 0)
 					{
 						CloseHandle(hFile);
+						UpdateDataList(&byteMemDat);
+					}
+					else
+					{
+						MessageBox(m_hWnd, L"Failed to read file", szTitle, MB_OK);
 					}
 				}
+				else
+				{
+					MessageBox(m_hWnd, L"Failed to open file", szTitle, MB_OK);
+				}
+				CoTaskMemFree(pwsz);
 			}
+			else
+			{
+				MessageBox(m_hWnd, L"Failed to get file path", szTitle, MB_OK);
+			}
+			pItem->Release();
+		}
+		else
+		{
+			MessageBox(m_hWnd, L"Failed to get file result", szTitle, MB_OK);
 		}
 	}
-	//ファイルから読んだ場合はリスト表示しない
-	UpdateDataList(&byteMemDat);
+	else
+	{
+		MessageBox(m_hWnd, L"Failed to show file open dialog", szTitle, MB_OK);
+	}
+	psiFolder->Release();
+	pDlg->Release();
 	return TRUE;
 }
 
@@ -303,15 +387,15 @@ BOOL ReadFromCard()
 			TCHAR strBuf[128];
 			if (LoadString(hInst, IDS_NOTSUPPORTOVER8MB, strBuf, sizeof(strBuf) / sizeof(strBuf[0])))
 			{
-				MessageBox(NULL, strBuf, szTitle, MB_OK);
+				MessageBox(m_hWnd, strBuf, szTitle, MB_OK);
 			}
 		}
 		else
 		{
 			for (int i = 0; i < pages; i++)
 			{
-				byte *pagebuf = &(byteMemDat.Byte[i * (pagesize + eccsize)]);
-				byte *eccbuf = pagebuf + pagesize;
+				byte* pagebuf = &(byteMemDat.Byte[i * (pagesize + eccsize)]);
+				byte* eccbuf = pagebuf + pagesize;
 
 				int r = mcio_mcReadPageWithEcc(i, pagebuf, eccbuf);
 				if (r)
@@ -322,7 +406,7 @@ BOOL ReadFromCard()
 					{
 						TCHAR strBuf2[128];
 						_stprintf_s(strBuf2, sizeof(strBuf2) / sizeof(strBuf2[0]), strBuf, i);
-						MessageBox(NULL, strBuf2, szTitle, MB_OK);
+						MessageBox(m_hWnd, strBuf2, szTitle, MB_OK);
 					}
 					break;
 				}
@@ -335,7 +419,7 @@ BOOL ReadFromCard()
 				TCHAR strBuf[128];
 				if (LoadString(hInst, IDS_READ_FINISH, strBuf, sizeof(strBuf) / sizeof(strBuf[0])))
 				{
-					MessageBox(NULL, strBuf, szTitle, MB_OK);
+					MessageBox(m_hWnd, strBuf, szTitle, MB_OK);
 				}
 			}
 		}
@@ -355,17 +439,29 @@ BOOL ReadFromCard()
 
 BOOL WriteToFile()
 {
-	IFileSaveDialog *pDlg;
+	IFileSaveDialog* pDlg;
 	COMDLG_FILTERSPEC FileTypes[] = {
 		{ L"PS2 MemoryCard files", L"*.ps2" },
 		{ L"All files", L"*.*" }
 	};
 
 	HRESULT hr = CoCreateInstance(CLSID_FileSaveDialog, NULL, CLSCTX_INPROC_SERVER, IID_PPV_ARGS(&pDlg));
+	if (FAILED(hr))
+	{
+		MessageBox(m_hWnd, L"Failed to create file save dialog", szTitle, MB_OK);
+		return FALSE;
+	}
+
 	WCHAR cPath[MAX_PATH] = L"";
 	GetCurrentDirectoryW(sizeof(cPath) / sizeof(cPath[0]), cPath);
-	IShellItem *psiFolder = NULL, *psiParent = NULL;
-	SHCreateItemFromParsingName(cPath, NULL, IID_PPV_ARGS(&psiFolder));
+	IShellItem* psiFolder = NULL, * psiParent = NULL;
+	hr = SHCreateItemFromParsingName(cPath, NULL, IID_PPV_ARGS(&psiFolder));
+	if (FAILED(hr)) {
+		pDlg->Release();
+		MessageBox(m_hWnd, L"Failed to create shell item from parsing name", szTitle, MB_OK);
+		return FALSE;
+	}
+
 	psiFolder->GetParent(&psiParent);
 
 	//初期フォルダの指定
@@ -378,20 +474,18 @@ BOOL WriteToFile()
 	hr = pDlg->Show(m_hWnd);
 
 	//ファイル名
-	LPOLESTR pwsz = NULL;
 	if (SUCCEEDED(hr))
 	{
-		IShellItem *pItem;
+		IShellItem* pItem;
 		hr = pDlg->GetResult(&pItem);
 		if (SUCCEEDED(hr))
 		{
-
+			LPOLESTR pwsz = NULL;
 			hr = pItem->GetDisplayName(SIGDN_FILESYSPATH, &pwsz);
 			if (SUCCEEDED(hr))
 			{
-				HANDLE hFile;
-				hFile = CreateFile(pwsz, GENERIC_WRITE, FILE_SHARE_READ, NULL, CREATE_ALWAYS, 0, NULL);
-				if (hFile)
+				HANDLE hFile = CreateFile(pwsz, GENERIC_WRITE, FILE_SHARE_READ, NULL, CREATE_ALWAYS, 0, NULL);
+				if (hFile != INVALID_HANDLE_VALUE)
 				{
 					if (byteMemDat.Superblock.clusters_per_card > 0 && byteMemDat.Superblock.pages_per_cluster > 0 && byteMemDat.Superblock.pages_per_block > 0)
 					{
@@ -417,10 +511,16 @@ BOOL WriteToFile()
 						}
 					}
 				}
+				else {
+					MessageBox(m_hWnd, L"Failed to open file for writing", szTitle, MB_OK);
+				}
+				CoTaskMemFree(pwsz);
 			}
+			pItem->Release();
 		}
 	}
-
+	psiFolder->Release();
+	pDlg->Release();
 	return TRUE;
 }
 
@@ -431,7 +531,7 @@ BOOL WriteToCard()
 	TCHAR msg[255];
 	if (LoadString(hInst, IDS_WRITE_CARD, msg, sizeof(msg) / sizeof(msg[0])))
 	{
-		if (MessageBox(m_hWnd, msg, szTitle, MB_OKCANCEL) != IDOK)
+		if (MessageBox(m_hWnd, msg, szTitle, MB_OKCANCEL | MB_ICONEXCLAMATION) != IDOK)
 		{
 			return FALSE;
 		}
@@ -458,7 +558,7 @@ BOOL WriteToCard()
 
 	if (!r)
 	{
-		TCHAR strBuf[128] = {0};	//メッセージ表示用
+		TCHAR strBuf[128] = { 0 };	//メッセージ表示用
 
 		mcio_init();	//返り値は無視
 
@@ -495,8 +595,8 @@ BOOL WriteToCard()
 				else
 				{
 					//書き込み処理
-					uint8_t** pagebufarray = (uint8_t**)malloc(sizeof(uint8_t*)*byteMemDat.Superblock.pages_per_block);	//バッファ配列
-					uint8_t** eccbufarray = (uint8_t**)malloc(sizeof(uint8_t*)*byteMemDat.Superblock.pages_per_block);	//バッファ配列
+					uint8_t** pagebufarray = (uint8_t**)malloc(sizeof(uint8_t*) * byteMemDat.Superblock.pages_per_block);	//バッファ配列
+					uint8_t** eccbufarray = (uint8_t**)malloc(sizeof(uint8_t*) * byteMemDat.Superblock.pages_per_block);	//バッファ配列
 					if (pagebufarray && eccbufarray)
 					{
 						for (int i = 0; i < srcblocks; i++)
@@ -544,7 +644,7 @@ BOOL WriteToCard()
 			//成功時のメッセージ
 			LoadString(hInst, IDS_WRITE_FINISH, strBuf, sizeof(strBuf) / sizeof(strBuf[0]));
 		}
-		MessageBox(NULL, strBuf, szTitle, MB_OK);
+		MessageBox(m_hWnd, strBuf, szTitle, MB_OK);
 	}
 	else
 	{
@@ -558,7 +658,7 @@ BOOL WriteToCard()
 	return res;
 }
 
-BOOL SetupWinUsb(DEVICE_DATA *deviceData)
+BOOL SetupWinUsb(DEVICE_DATA* deviceData)
 {
 	HRESULT               hr;
 	USB_DEVICE_DESCRIPTOR deviceDesc;
@@ -578,12 +678,12 @@ BOOL SetupWinUsb(DEVICE_DATA *deviceData)
 
 		if (noDevice) {
 
-			MessageBox(NULL, _T("Device not connected or driver not installed\n"), NULL, MB_OK);
+			MessageBox(m_hWnd, _T("Device not connected or driver not installed\n"), NULL, MB_OK);
 
 		}
 		else {
 
-			MessageBox(NULL, _T("Failed looking for device, HRESULT 0x%x\n"), NULL, MB_OK);
+			MessageBox(m_hWnd, _T("Failed looking for device, HRESULT 0x%x\n"), NULL, MB_OK);
 		}
 
 		return FALSE;
@@ -605,7 +705,7 @@ BOOL SetupWinUsb(DEVICE_DATA *deviceData)
 		_stprintf_s(strBuf, sizeof(strBuf) / sizeof(strBuf[0]), _T("Error among LastError %d or lengthReceived %d\n"),
 			FALSE == bResult ? GetLastError() : 0,
 			lengthReceived);
-		MessageBox(NULL, strBuf, NULL, MB_OK);
+		MessageBox(m_hWnd, strBuf, NULL, MB_OK);
 		CloseDevice(deviceData);
 		return FALSE;
 	}
@@ -703,13 +803,13 @@ BOOL UpdateDataList(PS2MEMORYCARD* data)
 			lvi.pszText = tstrTitle;
 			lvi.mask = LVIF_TEXT;
 			lvi.iItem = ListView_GetItemCount(hWnd);
-			ListView_InsertItem(hWnd, (LPLVITEM)& lvi);
+			ListView_InsertItem(hWnd, (LPLVITEM)&lvi);
 		}
 		else if (buf[0] == 'S' && buf[1] == 'C')
 		{
 			//"SC"で始まったらPS1データ
 			char strTitle[0x5f - 0x03];
-			StringCchCopyA(strTitle, sizeof(strTitle), (char*)& buf[4]);
+			StringCchCopyA(strTitle, sizeof(strTitle), (char*)&buf[4]);
 			//文字コード変換
 			CA2T tstrTitle(strTitle);
 
@@ -717,7 +817,7 @@ BOOL UpdateDataList(PS2MEMORYCARD* data)
 			lvi.pszText = tstrTitle;
 			lvi.mask = LVIF_TEXT;
 			lvi.iItem = ListView_GetItemCount(hWnd);
-			ListView_InsertItem(hWnd, (LPLVITEM)& lvi);
+			ListView_InsertItem(hWnd, (LPLVITEM)&lvi);
 		}
 		else
 		{
@@ -744,11 +844,11 @@ BOOL UpdateDataListfromCard(PS2MEMORYCARD* data)
 		_RPTN(_CRT_WARN, "---------- Filename ----------  |  Type  |  Size  | Last Modification (UTC)\n", NULL);
 		do {
 			r = mcio_mcDread(fd, &dirent);
-			if ((r) && (strcmp(dirent.name, ".")) && (strcmp(dirent.name, ".."))) { 
+			if ((r) && (strcmp(dirent.name, ".")) && (strcmp(dirent.name, ".."))) {
 				int tabnum = (32 / 7) - (strlen(dirent.name) / 7);
 				_RPTN(_CRT_WARN, "%s ", dirent.name);
 				int i;
-				for (i = 0; i<tabnum; i++)
+				for (i = 0; i < tabnum; i++)
 					_RPTN(_CRT_WARN, "\t", NULL);
 				if (!(dirent.stat.mode & sceMcFileAttrSubdir))
 				{
@@ -761,7 +861,7 @@ BOOL UpdateDataListfromCard(PS2MEMORYCARD* data)
 					lvi.pszText = wstrTitle;
 					lvi.mask = LVIF_TEXT;
 					lvi.iItem = ListView_GetItemCount(hWnd);
-					ListView_InsertItem(hWnd, (LPLVITEM)& lvi);
+					ListView_InsertItem(hWnd, (LPLVITEM)&lvi);
 				}
 				else
 				{
@@ -801,13 +901,13 @@ BOOL UpdateDataListfromCard(PS2MEMORYCARD* data)
 										lvi.pszText = tstrTitle;
 										lvi.mask = LVIF_TEXT;
 										lvi.iItem = ListView_GetItemCount(hWnd);
-										ListView_InsertItem(hWnd, (LPLVITEM)& lvi);
+										ListView_InsertItem(hWnd, (LPLVITEM)&lvi);
 									}
 									else if (buf[0] == 'S' && buf[1] == 'C')
 									{
 										//"SC"で始まったらPS1データ
 										char strTitle[0x5f - 0x03];
-										StringCchCopyA(strTitle, sizeof(strTitle), (char*)& buf[4]);
+										StringCchCopyA(strTitle, sizeof(strTitle), (char*)&buf[4]);
 										//文字コード変換
 										CA2T tstrTitle(strTitle);
 
@@ -815,10 +915,11 @@ BOOL UpdateDataListfromCard(PS2MEMORYCARD* data)
 										lvi.pszText = tstrTitle;
 										lvi.mask = LVIF_TEXT;
 										lvi.iItem = ListView_GetItemCount(hWnd);
-										ListView_InsertItem(hWnd, (LPLVITEM)& lvi);
+										ListView_InsertItem(hWnd, (LPLVITEM)&lvi);
 									}
 									else
-									{ }
+									{
+									}
 								}
 							}
 						} while (r);

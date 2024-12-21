@@ -13,6 +13,8 @@ HINSTANCE hInst;								// 現在のインターフェイス
 TCHAR szTitle[MAX_LOADSTRING];					// タイトル バーのテキスト
 TCHAR szWindowClass[MAX_LOADSTRING];			// メイン ウィンドウ クラス名
 HWND m_hWnd;									//ウインドウハンドル
+HANDLE hThread = NULL;
+BOOL isThreadRunning = FALSE;
 MEMORYCARD byteMemDat;	//メモリーカードデータ格納先
 
 // このコード モジュールに含まれる関数の宣言を転送します:
@@ -26,12 +28,14 @@ INT_PTR CALLBACK DialogProc(
 	_In_  LPARAM lParam
 );
 
+DWORD WINAPI ReadorWrite(LPVOID lpParam);
+
 byte CreateXOR(short adr, byte* dat);
 BOOL ReadFromFile();
 BOOL ReadFromCard();
 BOOL WriteToCard();
 BOOL WriteToFile();
-BOOL SetupWinUsb(DEVICE_DATA *deviceData);
+BOOL SetupWinUsb(DEVICE_DATA* deviceData);
 
 void SetProgressBar(int);
 void SetProgressBarPos(int pos);
@@ -178,21 +182,27 @@ INT_PTR CALLBACK DialogProc(
 			DestroyWindow(hDlg);
 			return (INT_PTR)TRUE;
 		}
-		else if (LOWORD(wParam) == IDC_BUTTON_FROMFILE)
+		else
 		{
-			ReadFromFile();
-		}
-		else if (LOWORD(wParam) == IDC_BUTTON_FROMCARD)
-		{
-			ReadFromCard();
-		}
-		else if (LOWORD(wParam) == IDC_BUTTON_TOFILE)
-		{
-			WriteToFile();
-		}
-		else if (LOWORD(wParam) == IDC_BUTTON_TOCARD)
-		{
-			WriteToCard();
+			switch ((WPARAM)wParam)
+			{
+			case IDC_BUTTON_FROMFILE:
+			case IDC_BUTTON_FROMCARD:
+			case IDC_BUTTON_TOFILE:
+			case IDC_BUTTON_TOCARD:
+				//Read or Write
+				if (!isThreadRunning) // スレッドが実行中でない場合にのみ新しいスレッドを作成
+				{
+					isThreadRunning = TRUE;
+					hThread = CreateThread(NULL, 0, ReadorWrite, (LPVOID)wParam, 0, NULL);
+					if (hThread == NULL)
+					{
+						isThreadRunning = FALSE;
+						MessageBox(m_hWnd, L"Failed to create thread", szTitle, MB_OK);
+					}
+				}
+				break;
+			}
 		}
 		break;
 	case WM_DESTROY:
@@ -200,6 +210,48 @@ INT_PTR CALLBACK DialogProc(
 		break;
 	}
 	return (INT_PTR)FALSE;
+}
+
+DWORD WINAPI ReadorWrite(LPVOID lpParam)
+{
+	CoInitialize(NULL);
+
+	EnableWindow(GetDlgItem(m_hWnd, IDC_BUTTON_FROMFILE), FALSE);
+	EnableWindow(GetDlgItem(m_hWnd, IDC_BUTTON_FROMCARD), FALSE);
+	EnableWindow(GetDlgItem(m_hWnd, IDC_BUTTON_TOFILE), FALSE);
+	EnableWindow(GetDlgItem(m_hWnd, IDC_BUTTON_TOCARD), FALSE);
+
+	WPARAM wParam = (WPARAM)lpParam;
+
+	if (LOWORD(wParam) == IDC_BUTTON_FROMFILE)
+	{
+		ReadFromFile();
+	}
+	else if (LOWORD(wParam) == IDC_BUTTON_FROMCARD)
+	{
+		ReadFromCard();
+	}
+	else if (LOWORD(wParam) == IDC_BUTTON_TOFILE)
+	{
+		WriteToFile();
+	}
+	else if (LOWORD(wParam) == IDC_BUTTON_TOCARD)
+	{
+		WriteToCard();
+	}
+
+	EnableWindow(GetDlgItem(m_hWnd, IDC_BUTTON_FROMFILE), TRUE);
+	EnableWindow(GetDlgItem(m_hWnd, IDC_BUTTON_FROMCARD), TRUE);
+	EnableWindow(GetDlgItem(m_hWnd, IDC_BUTTON_TOFILE), TRUE);
+	EnableWindow(GetDlgItem(m_hWnd, IDC_BUTTON_TOCARD), TRUE);
+
+	isThreadRunning = FALSE; // スレッドの実行が終了したことを示す
+	WaitForSingleObject(hThread, INFINITE);
+	CloseHandle(hThread);
+	hThread = NULL;
+
+	CoUninitialize();
+	return 0;
 }
 
 // バージョン情報ボックスのメッセージ ハンドラーです。
@@ -224,17 +276,28 @@ INT_PTR CALLBACK About(HWND hDlg, UINT message, WPARAM wParam, LPARAM lParam)
 
 BOOL ReadFromFile()
 {
-	IFileOpenDialog *pDlg;
+	IFileOpenDialog* pDlg;
 	COMDLG_FILTERSPEC FileTypes[] = {
 		{ L"MemoryCard files", L"*.mcr;*.mem;*.psm" },
 		{ L"All files", L"*.*" }
 	};
 
 	HRESULT hr = CoCreateInstance(CLSID_FileOpenDialog, NULL, CLSCTX_INPROC_SERVER, IID_PPV_ARGS(&pDlg));
+	if (FAILED(hr)) {
+		MessageBox(m_hWnd, L"Failed to create file open dialog", szTitle, MB_OK);
+		return FALSE;
+	}
+
 	WCHAR cPath[MAX_PATH] = L"";
 	GetCurrentDirectoryW(sizeof(cPath) / sizeof(cPath[0]), cPath);
-	IShellItem *psiFolder, *psiParent;
-	SHCreateItemFromParsingName(cPath, NULL, IID_PPV_ARGS(&psiFolder));
+	IShellItem* psiFolder, * psiParent;
+	hr = SHCreateItemFromParsingName(cPath, NULL, IID_PPV_ARGS(&psiFolder));
+	if (FAILED(hr)) {
+		pDlg->Release();
+		MessageBox(m_hWnd, L"Failed to create shell item from Parsing Name", szTitle, MB_OK);
+		return FALSE;
+	}
+
 	psiFolder->GetParent(&psiParent);
 
 	//初期フォルダの指定
@@ -245,32 +308,54 @@ BOOL ReadFromFile()
 	hr = pDlg->Show(NULL);
 
 	//ファイル名
-	LPOLESTR pwsz = NULL;
 	if (SUCCEEDED(hr))
 	{
-		IShellItem *pItem;
+		IShellItem* pItem;
 		hr = pDlg->GetResult(&pItem);
 		if (SUCCEEDED(hr))
 		{
-
+			LPOLESTR pwsz = NULL;
 			hr = pItem->GetDisplayName(SIGDN_FILESYSPATH, &pwsz);
 			if (SUCCEEDED(hr))
 			{
-				HANDLE hFile;
-				hFile = CreateFile(pwsz, GENERIC_READ, FILE_SHARE_READ, NULL, OPEN_EXISTING, 0, NULL);
-				if (hFile)
+				HANDLE hFile = CreateFile(pwsz, GENERIC_READ, FILE_SHARE_READ, NULL, OPEN_EXISTING, 0, NULL);
+				if (hFile != INVALID_HANDLE_VALUE)
 				{
 					DWORD BytesRead;
 					BOOL b = ReadFile(hFile, byteMemDat.Byte, sizeof(byteMemDat), &BytesRead, NULL);
-					if (BytesRead)
+					if (b && BytesRead > 0)
 					{
 						CloseHandle(hFile);
+						UpdateDataList(&byteMemDat);
+					}
+					else
+					{
+						MessageBox(m_hWnd, L"Failed to read file", szTitle, MB_OK);
 					}
 				}
+				else
+				{
+					MessageBox(m_hWnd, L"Failed to open file", szTitle, MB_OK);
+				}
+				CoTaskMemFree(pwsz);
 			}
+			else
+			{
+				MessageBox(m_hWnd, L"Failed to get file path", szTitle, MB_OK);
+			}
+			pItem->Release();
+		}
+		else
+		{
+			MessageBox(m_hWnd, L"Failed to get file result", szTitle, MB_OK);
 		}
 	}
-	UpdateDataList(&byteMemDat);
+	else
+	{
+		MessageBox(m_hWnd, L"Failed to show file open dialog", szTitle, MB_OK);
+	}
+	psiFolder->Release();
+	pDlg->Release();
 	return TRUE;
 }
 
@@ -318,7 +403,7 @@ BOOL ReadFromCard()
 			{
 				TCHAR strBuf[128];
 				_stprintf_s(strBuf, sizeof(strBuf) / sizeof(strBuf[0]), _T("Error among Read Frame %d.\nPlease Reconnect Memory Card Adaptor."), i);
-				MessageBox(NULL, strBuf, szTitle, MB_OK);
+				MessageBox(m_hWnd, strBuf, szTitle, MB_OK);
 				break;
 			}
 			//if (Length != 144)
@@ -344,17 +429,29 @@ BOOL ReadFromCard()
 
 BOOL WriteToFile()
 {
-	IFileSaveDialog *pDlg;
+	IFileSaveDialog* pDlg;
 	COMDLG_FILTERSPEC FileTypes[] = {
 		{ L"MemoryCard files", L"*.mcr;*.mem;*.psm" },
 		{ L"All files", L"*.*" }
 	};
 
 	HRESULT hr = CoCreateInstance(CLSID_FileSaveDialog, NULL, CLSCTX_INPROC_SERVER, IID_PPV_ARGS(&pDlg));
+	if (FAILED(hr))
+	{
+		MessageBox(m_hWnd, L"Failed to create file save dialog", szTitle, MB_OK);
+		return FALSE;
+	}
+
 	WCHAR cPath[MAX_PATH] = L"";
 	GetCurrentDirectoryW(sizeof(cPath) / sizeof(cPath[0]), cPath);
-	IShellItem *psiFolder = NULL, *psiParent = NULL;
-	SHCreateItemFromParsingName(cPath, NULL, IID_PPV_ARGS(&psiFolder));
+	IShellItem* psiFolder = NULL, * psiParent = NULL;
+	hr = SHCreateItemFromParsingName(cPath, NULL, IID_PPV_ARGS(&psiFolder));
+	if (FAILED(hr)) {
+		pDlg->Release();
+		MessageBox(m_hWnd, L"Failed to create shell item from parsing name", szTitle, MB_OK);
+		return FALSE;
+	}
+
 	psiFolder->GetParent(&psiParent);
 
 	//初期フォルダの指定
@@ -367,32 +464,39 @@ BOOL WriteToFile()
 	hr = pDlg->Show(m_hWnd);
 
 	//ファイル名
-	LPOLESTR pwsz = NULL;
 	if (SUCCEEDED(hr))
 	{
-		IShellItem *pItem;
+		IShellItem* pItem;
 		hr = pDlg->GetResult(&pItem);
 		if (SUCCEEDED(hr))
 		{
-
+			LPOLESTR pwsz = NULL;
 			hr = pItem->GetDisplayName(SIGDN_FILESYSPATH, &pwsz);
 			if (SUCCEEDED(hr))
 			{
-				HANDLE hFile;
-				hFile = CreateFile(pwsz, GENERIC_WRITE, FILE_SHARE_READ, NULL, CREATE_ALWAYS, 0, NULL);
-				if (hFile)
+				HANDLE hFile = CreateFile(pwsz, GENERIC_WRITE, FILE_SHARE_READ, NULL, CREATE_ALWAYS, 0, NULL);
+				if (hFile != INVALID_HANDLE_VALUE)
 				{
 					DWORD BytesWrite;
-					WriteFile(hFile, byteMemDat.Byte, sizeof(byteMemDat), &BytesWrite, NULL);
-					if (BytesWrite)
+					BOOL b = WriteFile(hFile, byteMemDat.Byte, sizeof(byteMemDat), &BytesWrite, NULL);
+					if (b && BytesWrite > 0)
 					{
 						CloseHandle(hFile);
 					}
+					else {
+						MessageBox(m_hWnd, L"Failed to write file", szTitle, MB_OK);
+					}
 				}
+				else {
+					MessageBox(m_hWnd, L"Failed to open file for writing", szTitle, MB_OK);
+				}
+				CoTaskMemFree(pwsz);
 			}
+			pItem->Release();
 		}
 	}
-
+	psiFolder->Release();
+	pDlg->Release();
 	return TRUE;
 }
 
@@ -413,7 +517,7 @@ BOOL WriteToCard()
 	const UCHAR writePipe = 2;
 	if (LoadString(hInst, IDS_WRITE_CARD, msg, sizeof(msg) / sizeof(msg[0])))
 	{
-		if (MessageBox(m_hWnd, msg, szTitle, MB_OKCANCEL) == IDOK)
+		if (MessageBox(m_hWnd, msg, szTitle, MB_OKCANCEL | MB_ICONEXCLAMATION) != IDOK)
 		{
 			BOOL b = SetupWinUsb(&deviceData);
 			if (b)
@@ -448,7 +552,7 @@ BOOL WriteToCard()
 					{
 						TCHAR strBuf[128];
 						_stprintf_s(strBuf, sizeof(strBuf) / sizeof(strBuf[0]), _T("Error among Write Frame %d.\nPlease Reconnect Memory Card Adaptor."), i);
-						MessageBox(NULL, strBuf, szTitle, MB_OK);
+						MessageBox(m_hWnd, strBuf, szTitle, MB_OK);
 						CloseDevice(&deviceData);
 
 						return FALSE;
@@ -487,7 +591,7 @@ byte CreateXOR(short adr, byte* dat)
 	return xor;
 }
 
-BOOL SetupWinUsb(DEVICE_DATA *deviceData)
+BOOL SetupWinUsb(DEVICE_DATA* deviceData)
 {
 	HRESULT               hr;
 	USB_DEVICE_DESCRIPTOR deviceDesc;
@@ -507,12 +611,12 @@ BOOL SetupWinUsb(DEVICE_DATA *deviceData)
 
 		if (noDevice) {
 
-			MessageBox(NULL, _T("Device not connected or driver not installed\n"), NULL, MB_OK);
+			MessageBox(m_hWnd, _T("Device not connected or driver not installed\n"), NULL, MB_OK);
 
 		}
 		else {
 
-			MessageBox(NULL, _T("Failed looking for device, HRESULT 0x%x\n"), NULL, MB_OK);
+			MessageBox(m_hWnd, _T("Failed looking for device, HRESULT 0x%x\n"), NULL, MB_OK);
 		}
 
 		return FALSE;
@@ -534,7 +638,7 @@ BOOL SetupWinUsb(DEVICE_DATA *deviceData)
 		_stprintf_s(strBuf, sizeof(strBuf) / sizeof(strBuf[0]), _T("Error among LastError %d or lengthReceived %d\n"),
 			FALSE == bResult ? GetLastError() : 0,
 			lengthReceived);
-		MessageBox(NULL, strBuf, NULL, MB_OK);
+		MessageBox(m_hWnd, strBuf, NULL, MB_OK);
 		CloseDevice(deviceData);
 		return FALSE;
 	}
@@ -591,7 +695,6 @@ void SetProgressBar(int max)
 	HWND hProg = GetDlgItem(m_hWnd, IDC_PROGRESS1);
 	SendMessage(hProg, PBM_SETRANGE, 0, MAKELPARAM(0, max));
 	SendMessage(hProg, PBM_SETSTEP, 1, 0);
-
 }
 
 //プログレスバーの位置を更新
