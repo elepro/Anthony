@@ -6,7 +6,7 @@
 #include "device.h"
 #include "Atlconv.h"
 
-#define MAX_LOADSTRING 100
+constexpr int MAX_LOADSTRING = 100;
 
 // グローバル変数:
 HINSTANCE hInst;								// 現在のインターフェイス
@@ -214,7 +214,7 @@ INT_PTR CALLBACK DialogProc(
 
 DWORD WINAPI ReadorWrite(LPVOID lpParam)
 {
-	CoInitialize(NULL);
+	HRESULT hResult = CoInitialize(NULL);
 
 	EnableWindow(GetDlgItem(m_hWnd, IDC_BUTTON_FROMFILE), FALSE);
 	EnableWindow(GetDlgItem(m_hWnd, IDC_BUTTON_FROMCARD), FALSE);
@@ -274,6 +274,73 @@ INT_PTR CALLBACK About(HWND hDlg, UINT message, WPARAM wParam, LPARAM lParam)
 	return (INT_PTR)FALSE;
 }
 
+//ファイルダイアログを表示する
+BOOL ShowFileDialog(IFileDialog** ppDlg, const COMDLG_FILTERSPEC* fileTypes, UINT fileTypeCount, BOOL isSaveDialog)
+{
+	HRESULT hr;
+	if (isSaveDialog)
+	{
+		hr = CoCreateInstance(CLSID_FileSaveDialog, NULL, CLSCTX_INPROC_SERVER, IID_PPV_ARGS(ppDlg));
+	}
+	else
+	{
+		hr = CoCreateInstance(CLSID_FileOpenDialog, NULL, CLSCTX_INPROC_SERVER, IID_PPV_ARGS(ppDlg));
+	}
+
+	if (FAILED(hr)) {
+		MessageBox(m_hWnd, L"Failed to create file dialog", szTitle, MB_OK);
+		return FALSE;
+	}
+
+	WCHAR cPath[MAX_PATH] = L"";
+	GetCurrentDirectoryW(sizeof(cPath) / sizeof(cPath[0]), cPath);
+	IShellItem* psiFolder;
+	hr = SHCreateItemFromParsingName(cPath, NULL, IID_PPV_ARGS(&psiFolder));
+	if (FAILED(hr)) {
+		(*ppDlg)->Release();
+		MessageBox(m_hWnd, L"Failed to create shell item from Parsing Name", szTitle, MB_OK);
+		return FALSE;
+	}
+
+	(*ppDlg)->SetFolder(psiFolder);
+	(*ppDlg)->SetFileTypes(fileTypeCount, fileTypes);
+	psiFolder->Release();
+
+	hr = (*ppDlg)->Show(NULL);
+	if (hr == HRESULT_FROM_WIN32(ERROR_CANCELLED)) {
+		(*ppDlg)->Release();
+		MessageBox(m_hWnd, L"Cancelled", szTitle, MB_OK);
+		return FALSE;
+	}
+
+	return TRUE;
+}
+
+//ファイルパスを取得する
+BOOL GetFilePathFromDialog(IFileDialog* pDlg, LPOLESTR* pwszFilePath)
+{
+	IShellItem* pItem;
+	HRESULT hr = pDlg->GetResult(&pItem);
+	if (SUCCEEDED(hr))
+	{
+		hr = pItem->GetDisplayName(SIGDN_FILESYSPATH, pwszFilePath);
+		pItem->Release();
+		if (SUCCEEDED(hr))
+		{
+			return TRUE;
+		}
+		else
+		{
+			MessageBox(m_hWnd, L"Failed to get file path", szTitle, MB_OK);
+		}
+	}
+	else
+	{
+		MessageBox(m_hWnd, L"Failed to get file result", szTitle, MB_OK);
+	}
+	return FALSE;
+}
+
 BOOL ReadFromFile()
 {
 	IFileOpenDialog* pDlg;
@@ -282,79 +349,36 @@ BOOL ReadFromFile()
 		{ L"All files", L"*.*" }
 	};
 
-	HRESULT hr = CoCreateInstance(CLSID_FileOpenDialog, NULL, CLSCTX_INPROC_SERVER, IID_PPV_ARGS(&pDlg));
-	if (FAILED(hr)) {
-		MessageBox(m_hWnd, L"Failed to create file open dialog", szTitle, MB_OK);
-		return FALSE;
-	}
-
-	WCHAR cPath[MAX_PATH] = L"";
-	GetCurrentDirectoryW(sizeof(cPath) / sizeof(cPath[0]), cPath);
-	IShellItem* psiFolder, * psiParent;
-	hr = SHCreateItemFromParsingName(cPath, NULL, IID_PPV_ARGS(&psiFolder));
-	if (FAILED(hr)) {
-		pDlg->Release();
-		MessageBox(m_hWnd, L"Failed to create shell item from Parsing Name", szTitle, MB_OK);
-		return FALSE;
-	}
-
-	psiFolder->GetParent(&psiParent);
-
-	//初期フォルダの指定
-	pDlg->SetFolder(psiFolder);
-	//フィルターの指定
-	pDlg->SetFileTypes(_countof(FileTypes), FileTypes);
-	//ダイアログ表示
-	hr = pDlg->Show(NULL);
-
-	//ファイル名
-	if (SUCCEEDED(hr))
+	if (!ShowFileDialog((IFileDialog**)&pDlg, FileTypes, _countof(FileTypes), FALSE))
 	{
-		IShellItem* pItem;
-		hr = pDlg->GetResult(&pItem);
-		if (SUCCEEDED(hr))
+		return FALSE;
+	}
+
+	LPOLESTR pwszFilePath = NULL;
+	if (GetFilePathFromDialog(pDlg, &pwszFilePath))
+	{
+		HANDLE hFile = CreateFile(pwszFilePath, GENERIC_READ, FILE_SHARE_READ, NULL, OPEN_EXISTING, 0, NULL);
+		if (hFile != INVALID_HANDLE_VALUE)
 		{
-			LPOLESTR pwsz = NULL;
-			hr = pItem->GetDisplayName(SIGDN_FILESYSPATH, &pwsz);
-			if (SUCCEEDED(hr))
+			DWORD BytesRead;
+			BOOL b = ReadFile(hFile, byteMemDat.Byte, sizeof(byteMemDat), &BytesRead, NULL);
+			if (b && BytesRead > 0)
 			{
-				HANDLE hFile = CreateFile(pwsz, GENERIC_READ, FILE_SHARE_READ, NULL, OPEN_EXISTING, 0, NULL);
-				if (hFile != INVALID_HANDLE_VALUE)
-				{
-					DWORD BytesRead;
-					BOOL b = ReadFile(hFile, byteMemDat.Byte, sizeof(byteMemDat), &BytesRead, NULL);
-					if (b && BytesRead > 0)
-					{
-						CloseHandle(hFile);
-						UpdateDataList(&byteMemDat);
-					}
-					else
-					{
-						MessageBox(m_hWnd, L"Failed to read file", szTitle, MB_OK);
-					}
-				}
-				else
-				{
-					MessageBox(m_hWnd, L"Failed to open file", szTitle, MB_OK);
-				}
-				CoTaskMemFree(pwsz);
+				CloseHandle(hFile);
+				UpdateDataList(&byteMemDat);
 			}
 			else
 			{
-				MessageBox(m_hWnd, L"Failed to get file path", szTitle, MB_OK);
+				MessageBox(m_hWnd, L"Failed to read file", szTitle, MB_OK);
+				CloseHandle(hFile);
 			}
-			pItem->Release();
 		}
 		else
 		{
-			MessageBox(m_hWnd, L"Failed to get file result", szTitle, MB_OK);
+			MessageBox(m_hWnd, L"Failed to open file", szTitle, MB_OK);
 		}
+		CoTaskMemFree(pwszFilePath);
 	}
-	else
-	{
-		MessageBox(m_hWnd, L"Failed to show file open dialog", szTitle, MB_OK);
-	}
-	psiFolder->Release();
 	pDlg->Release();
 	return TRUE;
 }
@@ -435,67 +459,32 @@ BOOL WriteToFile()
 		{ L"All files", L"*.*" }
 	};
 
-	HRESULT hr = CoCreateInstance(CLSID_FileSaveDialog, NULL, CLSCTX_INPROC_SERVER, IID_PPV_ARGS(&pDlg));
-	if (FAILED(hr))
+	if (!ShowFileDialog((IFileDialog**)&pDlg, FileTypes, _countof(FileTypes), TRUE))
 	{
-		MessageBox(m_hWnd, L"Failed to create file save dialog", szTitle, MB_OK);
 		return FALSE;
 	}
-
-	WCHAR cPath[MAX_PATH] = L"";
-	GetCurrentDirectoryW(sizeof(cPath) / sizeof(cPath[0]), cPath);
-	IShellItem* psiFolder = NULL, * psiParent = NULL;
-	hr = SHCreateItemFromParsingName(cPath, NULL, IID_PPV_ARGS(&psiFolder));
-	if (FAILED(hr)) {
-		pDlg->Release();
-		MessageBox(m_hWnd, L"Failed to create shell item from parsing name", szTitle, MB_OK);
-		return FALSE;
-	}
-
-	psiFolder->GetParent(&psiParent);
-
-	//初期フォルダの指定
-	pDlg->SetFolder(psiFolder);
-	//フィルターの指定
-	pDlg->SetFileTypes(_countof(FileTypes), FileTypes);
-	//拡張子がなかった場合に付加する拡張子
-	pDlg->SetDefaultExtension(L"mem");
-	//ダイアログ表示
-	hr = pDlg->Show(m_hWnd);
-
-	//ファイル名
-	if (SUCCEEDED(hr))
+	LPOLESTR pwszFilePath = NULL;
+	if (GetFilePathFromDialog(pDlg, &pwszFilePath))
 	{
-		IShellItem* pItem;
-		hr = pDlg->GetResult(&pItem);
-		if (SUCCEEDED(hr))
+		HANDLE hFile = CreateFile(pwszFilePath, GENERIC_WRITE, FILE_SHARE_READ, NULL, CREATE_ALWAYS, 0, NULL);
+		if (hFile != INVALID_HANDLE_VALUE)
 		{
-			LPOLESTR pwsz = NULL;
-			hr = pItem->GetDisplayName(SIGDN_FILESYSPATH, &pwsz);
-			if (SUCCEEDED(hr))
+			DWORD BytesWrite;
+			BOOL b = WriteFile(hFile, byteMemDat.Byte, sizeof(byteMemDat), &BytesWrite, NULL);
+			if (b && BytesWrite > 0)
 			{
-				HANDLE hFile = CreateFile(pwsz, GENERIC_WRITE, FILE_SHARE_READ, NULL, CREATE_ALWAYS, 0, NULL);
-				if (hFile != INVALID_HANDLE_VALUE)
-				{
-					DWORD BytesWrite;
-					BOOL b = WriteFile(hFile, byteMemDat.Byte, sizeof(byteMemDat), &BytesWrite, NULL);
-					if (b && BytesWrite > 0)
-					{
-						CloseHandle(hFile);
-					}
-					else {
-						MessageBox(m_hWnd, L"Failed to write file", szTitle, MB_OK);
-					}
-				}
-				else {
-					MessageBox(m_hWnd, L"Failed to open file for writing", szTitle, MB_OK);
-				}
-				CoTaskMemFree(pwsz);
+				CloseHandle(hFile);
 			}
-			pItem->Release();
+			else {
+				MessageBox(m_hWnd, L"Failed to write file", szTitle, MB_OK);
+				CloseHandle(hFile);
+			}
 		}
+		else {
+			MessageBox(m_hWnd, L"Failed to open file for writing", szTitle, MB_OK);
+		}
+		CoTaskMemFree(pwszFilePath);
 	}
-	psiFolder->Release();
 	pDlg->Release();
 	return TRUE;
 }
