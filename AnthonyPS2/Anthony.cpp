@@ -179,7 +179,7 @@ INT_PTR CALLBACK DialogProc(
 		return (INT_PTR)TRUE;
 
 	case WM_COMMAND:
-		if (LOWORD(wParam) == IDOK || LOWORD(wParam) == IDCANCEL)
+		if (LOWORD(wParam) == IDEXIT || LOWORD(wParam) == IDCANCEL)
 		{
 			DestroyWindow(hDlg);
 			return (INT_PTR)TRUE;
@@ -277,12 +277,18 @@ INT_PTR CALLBACK About(HWND hDlg, UINT message, WPARAM wParam, LPARAM lParam)
 }
 
 //ファイルダイアログを表示する
-BOOL ShowFileDialog(IFileDialog** ppDlg, const COMDLG_FILTERSPEC* fileTypes, UINT fileTypeCount, BOOL isSaveDialog)
+static BOOL ShowFileDialog(IFileDialog** ppDlg, const COMDLG_FILTERSPEC* fileTypes, UINT fileTypeCount, BOOL isSaveDialog)
 {
 	HRESULT hr;
 	if (isSaveDialog)
 	{
 		hr = CoCreateInstance(CLSID_FileSaveDialog, NULL, CLSCTX_INPROC_SERVER, IID_PPV_ARGS(ppDlg));
+		TCHAR strBuf[4];
+		if (LoadString(hInst, IDS_DEFAULTEXTENSION, strBuf, sizeof(strBuf) / sizeof(strBuf[0])))
+		{
+			//save時に付加するデフォルト拡張子
+			(*ppDlg)->SetDefaultExtension(strBuf);
+		}
 	}
 	else
 	{
@@ -304,7 +310,7 @@ BOOL ShowFileDialog(IFileDialog** ppDlg, const COMDLG_FILTERSPEC* fileTypes, UIN
 		return FALSE;
 	}
 
-	(*ppDlg)->SetFolder(psiFolder);
+//	(*ppDlg)->SetFolder(psiFolder);
 	(*ppDlg)->SetFileTypes(fileTypeCount, fileTypes);
 	psiFolder->Release();
 
@@ -319,7 +325,7 @@ BOOL ShowFileDialog(IFileDialog** ppDlg, const COMDLG_FILTERSPEC* fileTypes, UIN
 }
 
 //ファイルパスを取得する
-BOOL GetFilePathFromDialog(IFileDialog* pDlg, LPOLESTR* pwszFilePath)
+static BOOL GetFilePathFromDialog(IFileDialog* pDlg, LPOLESTR* pwszFilePath)
 {
 	IShellItem* pItem;
 	HRESULT hr = pDlg->GetResult(&pItem);
@@ -345,7 +351,7 @@ BOOL GetFilePathFromDialog(IFileDialog* pDlg, LPOLESTR* pwszFilePath)
 
 BOOL ReadFromFile()
 {
-	IFileOpenDialog* pDlg;
+	IFileOpenDialog* pDlg = NULL;
 	COMDLG_FILTERSPEC FileTypes[] = {
 		{ L"PS2 MemoryCard files", L"*.ps2" },
 		{ L"All files", L"*.*" }
@@ -377,7 +383,10 @@ BOOL ReadFromFile()
 		}
 		else
 		{
-			MessageBox(m_hWnd, L"Failed to open file", szTitle, MB_OK);
+			DWORD dwError = GetLastError();
+			TCHAR szError[256];
+			_stprintf_s(szError, sizeof(szError) / sizeof(szError[0]), L"Failed to open file. Error code: %d", dwError);
+			MessageBox(m_hWnd, szError, szTitle, MB_OK);
 		}
 		CoTaskMemFree(pwszFilePath);
 	}
@@ -463,7 +472,7 @@ BOOL ReadFromCard()
 
 BOOL WriteToFile()
 {
-	IFileSaveDialog* pDlg;
+	IFileSaveDialog* pDlg = NULL;
 	COMDLG_FILTERSPEC FileTypes[] = {
 		{ L"PS2 MemoryCard files", L"*.ps2" },
 		{ L"All files", L"*.*" }
@@ -512,6 +521,10 @@ BOOL WriteToFile()
 					MessageBox(m_hWnd, strBuf, szTitle, MB_OK);
 					CloseHandle(hFile);
 				}
+			}
+			else
+			{
+				CloseHandle(hFile);
 			}
 		}
 		else {
@@ -581,7 +594,7 @@ BOOL WriteToCard()
 			if (!r)
 			{
 				//イメージファイルのページサイズ(ecc抜き)*ページ数と書き込み先サイズが合わなかったら書かない
-				if ((byteMemDat.Superblock.page_len * srcpages) != dstcardsize)
+				if ((byteMemDat.Superblock.page_len * srcpages) == dstcardsize)
 				{
 					//書き込み処理
 					uint8_t** pagebufarray = (uint8_t**)malloc(sizeof(uint8_t*) * byteMemDat.Superblock.pages_per_block);	//バッファ配列
@@ -660,7 +673,7 @@ BOOL WriteToCard()
 BOOL SetupWinUsb(DEVICE_DATA* deviceData)
 {
 	HRESULT               hr;
-	USB_DEVICE_DESCRIPTOR deviceDesc;
+	USB_DEVICE_DESCRIPTOR deviceDesc = {};
 	BOOL                  bResult;
 	BOOL                  noDevice;
 	ULONG                 lengthReceived;
@@ -771,7 +784,7 @@ void SetProgressBarPos(int pos)
 	UpdateWindow(m_hWnd);
 }
 
-void ProgressBar_Step()
+static void ProgressBar_Step()
 {
 	HWND hProg = GetDlgItem(m_hWnd, IDC_PROGRESS1);
 	SendMessage(hProg, PBM_STEPIT, 0, 0);
